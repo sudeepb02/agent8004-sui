@@ -12,9 +12,6 @@ export default function RegisterAgent() {
   const [description, setDescription] = useState('')
   const [image, setImage] = useState('')
   const [tokenUri, setTokenUri] = useState('')
-  const [endpointName, setEndpointName] = useState('')
-  const [endpointUrl, setEndpointUrl] = useState('')
-  const [endpointVersion, setEndpointVersion] = useState('1.0.0')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string>('')
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
@@ -38,7 +35,6 @@ export default function RegisterAgent() {
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(description))),
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(image))),
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(tokenUri))),
-          tx.pure(new Uint8Array([0])), // Empty vector - 0 length
         ],
       })
 
@@ -57,9 +53,6 @@ export default function RegisterAgent() {
             setDescription('')
             setImage('')
             setTokenUri('')
-            setEndpointName('')
-            setEndpointUrl('')
-            setEndpointVersion('1.0.0')
             setLoading(false)
           },
           onError: (error) => {
@@ -165,54 +158,6 @@ export default function RegisterAgent() {
             </p>
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Endpoint Configuration (Optional)</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="endpointName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Endpoint Name
-                </label>
-                <input
-                  type="text"
-                  id="endpointName"
-                  value={endpointName}
-                  onChange={(e) => setEndpointName(e.target.value)}
-                  placeholder="API"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="endpointUrl" className="block text-sm font-medium text-gray-700 mb-2">
-                  Endpoint URL
-                </label>
-                <input
-                  type="text"
-                  id="endpointUrl"
-                  value={endpointUrl}
-                  onChange={(e) => setEndpointUrl(e.target.value)}
-                  placeholder="https://api.example.com/agent"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="endpointVersion" className="block text-sm font-medium text-gray-700 mb-2">
-                  Version
-                </label>
-                <input
-                  type="text"
-                  id="endpointVersion"
-                  value={endpointVersion}
-                  onChange={(e) => setEndpointVersion(e.target.value)}
-                  placeholder="1.0.0"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
-
           <button
             type="submit"
             disabled={loading || !name || !description || !image || !tokenUri}
@@ -239,10 +184,10 @@ export default function RegisterAgent() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-medium text-blue-900 mb-2">Registration Tips</h3>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• All fields except endpoints are required</li>
+          <li>• All fields are required</li>
           <li>• Token URI should point to a JSON metadata file</li>
           <li>• Image URL will be displayed as your agent's avatar</li>
-          <li>• Endpoints are optional but recommended for API access</li>
+          <li>• You can add endpoints later after registration</li>
         </ul>
       </div>
     </div>
