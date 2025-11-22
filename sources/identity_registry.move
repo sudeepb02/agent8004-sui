@@ -88,6 +88,18 @@ public fun add_endpoint(
     vector::push_back(&mut agent.endpoints, endpoint_data);
 }
 
+public fun set_token_uri(agent: &mut Agent, token_uri: String) {
+    agent.token_uri = token_uri;
+}
+
+public fun set_description(agent: &mut Agent, description: String) {
+    agent.description = description;
+}
+
+public fun set_image(agent: &mut Agent, image: String) {
+    agent.image = image;
+}
+
 public fun get_agent_id(agent: &Agent): u64 {
     agent.agent_id
 }
