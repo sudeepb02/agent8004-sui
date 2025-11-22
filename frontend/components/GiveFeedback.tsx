@@ -31,17 +31,14 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
     try {
       const tx = new Transaction()
 
-      // Convert file hash to bytes
-      const hashBytes = fileHash ? new Uint8Array(new TextEncoder().encode(fileHash)) : new Uint8Array()
-
       tx.moveCall({
         target: `${MODULES.REPUTATION_REGISTRY}::give_feedback`,
         arguments: [
           tx.object(CONTRACT_CONFIG.REPUTATION_REGISTRY_ID),
           tx.pure.u64(agent.agentId),
           tx.pure.u8(score),
-          tx.pure.string(fileUri),
-          tx.pure(hashBytes),
+          tx.pure.string(fileUri || ''),
+          tx.pure.vector('u8', Array.from(new TextEncoder().encode(fileHash || ''))),
         ],
       })
 
