@@ -47,7 +47,6 @@ public fun register(
     description: vector<u8>,
     image: vector<u8>,
     token_uri: vector<u8>,
-    endpoints: vector<Endpoint>,
     ctx: &mut TxContext,
 ): Agent {
     let sender = tx_context::sender(ctx);
@@ -61,7 +60,7 @@ public fun register(
         description: string::utf8(description),
         image: string::utf8(image),
         token_uri: string::utf8(token_uri),
-        endpoints,
+        endpoints: vector::empty(),
     };
 
     table::add(&mut registry.agents, agent_id, object::id(&agent));
@@ -72,6 +71,21 @@ public fun register(
     });
 
     agent
+}
+
+// Add endpoint to an existing agent
+public fun add_endpoint(
+    agent: &mut Agent,
+    name: vector<u8>,
+    endpoint: vector<u8>,
+    version: vector<u8>,
+) {
+    let endpoint_data = Endpoint {
+        name: string::utf8(name),
+        endpoint: string::utf8(endpoint),
+        version: string::utf8(version),
+    };
+    vector::push_back(&mut agent.endpoints, endpoint_data);
 }
 
 public fun get_agent_id(agent: &Agent): u64 {
