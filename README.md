@@ -1,10 +1,10 @@
 # ERC-8004 Trustless Agents - Sui Move Implementation
 
 
-Package ID: 0xa7f727075413907a7aad473d9780e3bdf1e5bec8d0606f55c04e82d03342de85
+Package ID: 0x398ca8bc7fc359e45bcbde3f69ddf713cfb983701330369a665eff10373ac2e2
 
-Identity Registry Object ID: 0xace3d20204fa21ca06f8b594241dc0b0e38ce1a7050cad2764dc7dc3d5cf0079
+Identity Registry Object ID: 0x2b9bed86f2b603eaaeca5cba58206469b494145a625ca51b089c0e2d56e2cc3a
 
-Reputation Registry Object ID: 0xbf0d407dd3d7a044bcd1cbb42e45306c03750b5cef8e26948d7ff57ccd82ac56
+Reputation Registry Object ID: 0x0156207a8bffa8d1a8b4127b53e1dcd974e5c891ea8104a5dc0202a6c690693e
 
-Validation Registry Object ID: 0xee8f086adb6763620949e690e03e1de7193fa0f94bea84dc119014fd073235d1
+Validation Registry Object ID: 0x2f4b05166dd06ac58c04cd65046e717c0e91e8ba096719c642e30aa95c3f6149
