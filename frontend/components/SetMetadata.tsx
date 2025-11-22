@@ -16,8 +16,12 @@ export default function SetMetadata() {
   const account = useCurrentAccount()
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState('')
-  const [metadataKey, setMetadataKey] = useState('')
-  const [metadataValue, setMetadataValue] = useState('')
+  const [description, setDescription] = useState('')
+  const [image, setImage] = useState('')
+  const [tokenUri, setTokenUri] = useState('')
+  const [endpointName, setEndpointName] = useState('')
+  const [endpointUrl, setEndpointUrl] = useState('')
+  const [endpointVersion, setEndpointVersion] = useState('1.0.0')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string>('')
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
@@ -59,27 +63,83 @@ export default function SetMetadata() {
     }
   }
 
-  const handleSetMetadata = async (e: React.FormEvent) => {
+  const handleUpdateDetails = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedAgent) return
+    if (!selectedAgent || (!description && !image)) return
 
     setLoading(true)
     setResult('')
 
     try {
       const tx = new Transaction()
-      
-      // Convert string to bytes
-      const encoder = new TextEncoder()
-      const valueBytes = new Uint8Array(encoder.encode(metadataValue))
+
+      // Update description if provided
+      if (description) {
+        tx.moveCall({
+          target: `${MODULES.IDENTITY_REGISTRY}::set_description`,
+          arguments: [
+            tx.object(selectedAgent),
+            tx.pure.string(description),
+          ],
+        })
+      }
+
+      // Update image if provided
+      if (image) {
+        tx.moveCall({
+          target: `${MODULES.IDENTITY_REGISTRY}::set_image`,
+          arguments: [
+            tx.object(selectedAgent),
+            tx.pure.string(image),
+          ],
+        })
+      }
+
+      signAndExecute(
+        {
+          transaction: tx as any,
+        },
+        {
+          onSuccess: async (result) => {
+            await suiClient.waitForTransaction({
+              digest: result.digest,
+            })
+            setResult(`Success! Agent details updated. Transaction: ${result.digest}`)
+            setDescription('')
+            setImage('')
+            setLoading(false)
+          },
+          onError: (error) => {
+            console.error('Transaction failed:', error)
+            setResult(`Error: ${error.message}`)
+            setLoading(false)
+          },
+        }
+      )
+    } catch (error: any) {
+      console.error('Error:', error)
+      setResult(`Error: ${error.message}`)
+      setLoading(false)
+    }
+  }
+
+  const handleAddEndpoint = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedAgent || !endpointName || !endpointUrl) return
+
+    setLoading(true)
+    setResult('')
+
+    try {
+      const tx = new Transaction()
 
       tx.moveCall({
-        target: `${MODULES.IDENTITY_REGISTRY}::set_metadata`,
+        target: `${MODULES.IDENTITY_REGISTRY}::add_endpoint`,
         arguments: [
-          tx.object(CONTRACT_CONFIG.IDENTITY_REGISTRY_ID),
           tx.object(selectedAgent),
-          tx.pure.string(metadataKey),
-          tx.pure(valueBytes),
+          tx.pure.vector('u8', Array.from(new TextEncoder().encode(endpointName))),
+          tx.pure.vector('u8', Array.from(new TextEncoder().encode(endpointUrl))),
+          tx.pure.vector('u8', Array.from(new TextEncoder().encode(endpointVersion))),
         ],
       })
 
@@ -92,9 +152,10 @@ export default function SetMetadata() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Metadata set. Transaction: ${result.digest}`)
-            setMetadataKey('')
-            setMetadataValue('')
+            setResult(`Success! Endpoint added. Transaction: ${result.digest}`)
+            setEndpointName('')
+            setEndpointUrl('')
+            setEndpointVersion('1.0.0')
             setLoading(false)
           },
           onError: (error) => {
@@ -112,7 +173,7 @@ export default function SetMetadata() {
   }
 
   const handleSetTokenUri = async () => {
-    if (!selectedAgent || !metadataValue) return
+    if (!selectedAgent || !tokenUri) return
 
     setLoading(true)
     setResult('')
@@ -124,7 +185,7 @@ export default function SetMetadata() {
         target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
         arguments: [
           tx.object(selectedAgent),
-          tx.pure.string(metadataValue),
+          tx.pure.string(tokenUri),
         ],
       })
 
@@ -138,7 +199,7 @@ export default function SetMetadata() {
               digest: result.digest,
             })
             setResult(`Success! Token URI updated. Transaction: ${result.digest}`)
-            setMetadataValue('')
+            setTokenUri('')
             setLoading(false)
           },
           onError: (error) => {
@@ -224,8 +285,8 @@ export default function SetMetadata() {
               <input
                 type="text"
                 id="tokenUri"
-                value={metadataValue}
-                onChange={(e) => setMetadataValue(e.target.value)}
+                value={tokenUri}
+                onChange={(e) => setTokenUri(e.target.value)}
                 placeholder="ipfs://QmYourAgentMetadata"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
@@ -233,7 +294,7 @@ export default function SetMetadata() {
             <button
               type="button"
               onClick={handleSetTokenUri}
-              disabled={loading || !metadataValue}
+              disabled={loading || !tokenUri}
               className="w-full bg-secondary text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
             >
               {loading ? (
@@ -248,55 +309,123 @@ export default function SetMetadata() {
           </div>
         </div>
 
-        {/* Set Custom Metadata */}
-        <div className="border border-gray-200 rounded-lg p-6 bg-purple-50">
+        {/* Update Agent Details */}
+        <div className="border border-gray-200 rounded-lg p-6 mb-6 bg-purple-50">
           <div className="flex items-center mb-4">
             <div className="bg-purple-100 p-2 rounded-lg mr-3">
-              <FontAwesomeIcon icon={faTag} className="w-5 h-5 text-purple-600" />
+              <FontAwesomeIcon icon={faRobot} className="w-5 h-5 text-purple-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">Set Custom Metadata</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Update Agent Details</h3>
           </div>
-          <form onSubmit={handleSetMetadata} className="space-y-4">
+          <form onSubmit={handleUpdateDetails} className="space-y-4">
             <div>
-              <label htmlFor="key" className="block text-sm font-medium text-gray-700 mb-2">
-                Metadata Key
-              </label>
-              <input
-                type="text"
-                id="key"
-                value={metadataKey}
-                onChange={(e) => setMetadataKey(e.target.value)}
-                placeholder="e.g., agentWallet, agentName, description"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="value" className="block text-sm font-medium text-gray-700 mb-2">
-                Metadata Value
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                Description
               </label>
               <textarea
-                id="value"
-                value={metadataValue}
-                onChange={(e) => setMetadataValue(e.target.value)}
-                placeholder="Value for the metadata key"
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe your agent's capabilities"
                 rows={3}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               />
             </div>
 
+            <div>
+              <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-2">
+                Image URL
+              </label>
+              <input
+                type="text"
+                id="image"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="https://example.com/agent-image.png"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
             <button
               type="submit"
-              disabled={loading || !metadataKey || !metadataValue}
+              disabled={loading || (!description && !image)}
               className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
             >
               {loading ? (
                 <>
                   <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
-                  Setting...
+                  Updating...
                 </>
               ) : (
-                'Set Metadata'
+                'Update Details'
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Add Endpoint */}
+        <div className="border border-gray-200 rounded-lg p-6 bg-green-50">
+          <div className="flex items-center mb-4">
+            <div className="bg-green-100 p-2 rounded-lg mr-3">
+              <FontAwesomeIcon icon={faTag} className="w-5 h-5 text-green-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">Add Endpoint</h3>
+          </div>
+          <form onSubmit={handleAddEndpoint} className="space-y-4">
+            <div>
+              <label htmlFor="endpointName" className="block text-sm font-medium text-gray-700 mb-2">
+                Endpoint Name
+              </label>
+              <input
+                type="text"
+                id="endpointName"
+                value={endpointName}
+                onChange={(e) => setEndpointName(e.target.value)}
+                placeholder="API"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="endpointUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                Endpoint URL
+              </label>
+              <input
+                type="text"
+                id="endpointUrl"
+                value={endpointUrl}
+                onChange={(e) => setEndpointUrl(e.target.value)}
+                placeholder="https://api.example.com/agent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="endpointVersion" className="block text-sm font-medium text-gray-700 mb-2">
+                Version
+              </label>
+              <input
+                type="text"
+                id="endpointVersion"
+                value={endpointVersion}
+                onChange={(e) => setEndpointVersion(e.target.value)}
+                placeholder="1.0.0"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !endpointName || !endpointUrl}
+              className="w-full bg-secondary text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  Adding...
+                </>
+              ) : (
+                'Add Endpoint'
               )}
             </button>
           </form>
@@ -323,24 +452,24 @@ export default function SetMetadata() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
           <FontAwesomeIcon icon={faInfoCircle} className="w-5 h-5 mr-2" />
-          Metadata Management Tips
+          Agent Management Tips
         </h3>
         <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
           <div className="flex items-start">
             <span className="text-blue-500 mr-2">•</span>
-            <span><strong>Common keys:</strong> agentWallet, agentName, description, website</span>
+            <span>Update description or image (name is permanent)</span>
           </div>
           <div className="flex items-start">
             <span className="text-blue-500 mr-2">•</span>
-            <span>Metadata is stored permanently on-chain</span>
+            <span>Set Token URI to update agent metadata file</span>
           </div>
           <div className="flex items-start">
             <span className="text-blue-500 mr-2">•</span>
-            <span>Only the agent owner can set metadata</span>
+            <span>Add endpoints for agent API access</span>
           </div>
           <div className="flex items-start">
             <span className="text-blue-500 mr-2">•</span>
-            <span>Update Token URI to change agent profile</span>
+            <span>Only the agent owner can modify details</span>
           </div>
         </div>
       </div>
