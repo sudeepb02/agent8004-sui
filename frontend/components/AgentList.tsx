@@ -10,7 +10,6 @@ interface Agent {
   id: string
   agentId: string
   tokenUri: string
-  owner: string
 }
 
 export default function AgentList() {
@@ -50,7 +49,6 @@ export default function AgentList() {
             id: obj.data.objectId,
             agentId: fields.agent_id,
             tokenUri: fields.token_uri,
-            owner: fields.owner,
           }
         })
 
@@ -142,7 +140,7 @@ export default function AgentList() {
               <div className="bg-gray-50 rounded-lg p-3">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Owner</label>
                 <p className="text-gray-900 font-mono text-xs break-all mt-1">
-                  {agent.owner.slice(0, 10)}...{agent.owner.slice(-8)}
+                  {account?.address.slice(0, 10)}...{account?.address.slice(-8)}
                 </p>
               </div>
             </div>
