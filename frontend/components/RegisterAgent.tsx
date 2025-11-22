@@ -2,7 +2,7 @@
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faRocket, faSpinner, faLink } from '@fortawesome/free-solid-svg-icons'
-import { useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit'
+import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { useState } from 'react'
 import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
@@ -16,6 +16,7 @@ export default function RegisterAgent() {
   const [result, setResult] = useState<string>('')
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   const suiClient = useSuiClient()
+  const currentAccount = useCurrentAccount()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,11 +24,16 @@ export default function RegisterAgent() {
     setResult('')
 
     try {
+      if (!currentAccount?.address) {
+        setResult('Error: No wallet connected')
+        setLoading(false)
+        return
+      }
+
       const tx = new Transaction()
 
-      // Call the register function with all required parameters
-      // Pass empty array for endpoints for now, @todo add enpoints later
-      tx.moveCall({
+      // Call the register function
+      let agent = tx.moveCall({
         target: `${MODULES.IDENTITY_REGISTRY}::register`,
         arguments: [
           tx.object(CONTRACT_CONFIG.IDENTITY_REGISTRY_ID),
@@ -38,6 +44,9 @@ export default function RegisterAgent() {
         ],
       })
 
+      // Transfer the agent object to the sender
+      tx.transferObjects([agent], tx.pure.address(currentAccount.address))
+    
       signAndExecute(
         {
           transaction: tx as any,
