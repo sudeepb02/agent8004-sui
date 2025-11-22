@@ -27,17 +27,9 @@ export default function RegisterAgent() {
 
     try {
       const tx = new Transaction()
-      
-      // Prepare endpoint data
-      const endpointsArg = endpointName && endpointUrl 
-        ? [[
-            Array.from(new TextEncoder().encode(endpointName)),
-            Array.from(new TextEncoder().encode(endpointUrl)),
-            Array.from(new TextEncoder().encode(endpointVersion))
-          ]]
-        : []
 
       // Call the register function with all required parameters
+      // Pass empty array for endpoints for now, @todo add enpoints later
       tx.moveCall({
         target: `${MODULES.IDENTITY_REGISTRY}::register`,
         arguments: [
@@ -46,7 +38,7 @@ export default function RegisterAgent() {
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(description))),
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(image))),
           tx.pure.vector('u8', Array.from(new TextEncoder().encode(tokenUri))),
-          tx.pure(endpointsArg as any),
+          tx.pure(new Uint8Array([0])), // Empty vector - 0 length
         ],
       })
 
