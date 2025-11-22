@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faStar, faCheckCircle } from '@fortawesome/free-solid-svg-icons'
 import { useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
+import { bcs } from '@mysten/sui/bcs'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG } from '@/config/contracts'
 import type { Agent, Reputation } from '@/types'
@@ -39,18 +40,43 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
       })
       
       const result = await suiClient.devInspectTransactionBlock({
-        sender: account?.address || '0x0',
+        sender: account?.address || '0x0000000000000000000000000000000000000000000000000000000000000000',
         transactionBlock: tx as any,
       })
 
-      // Parse the result (this is simplified, actual parsing depends on response structure)
+      // Parse the result from return values
+      if (result.results && result.results[0] && result.results[0].returnValues) {
+        const returnValues = result.results[0].returnValues
+        // returnValues[0] is feedback count (u64), returnValues[1] is average score (u8)
+        const feedbackCountBytes = returnValues[0]?.[0]
+        const averageScoreBytes = returnValues[1]?.[0]
+        
+        const feedbackCount = feedbackCountBytes 
+          ? bcs.u64().parse(new Uint8Array(feedbackCountBytes))
+          : 0
+        const averageScore = averageScoreBytes
+          ? bcs.u8().parse(new Uint8Array(averageScoreBytes))
+          : 0
+        
+        setReputation({
+          feedbackCount: Number(feedbackCount),
+          averageScore: Number(averageScore),
+          feedbacks: [],
+        })
+      } else {
+        setReputation({
+          feedbackCount: 0,
+          averageScore: 0,
+          feedbacks: [],
+        })
+      }
+    } catch (error) {
+      console.error('Error loading reputation:', error)
       setReputation({
         feedbackCount: 0,
         averageScore: 0,
         feedbacks: [],
       })
-    } catch (error) {
-      console.error('Error loading reputation:', error)
     } finally {
       setLoading(false)
     }
