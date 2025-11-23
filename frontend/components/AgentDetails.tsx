@@ -57,12 +57,16 @@ export default function AgentDetails({
   const [endpointForm, setEndpointForm] = useState({ name: '', endpoint: '', version: '' })
   const [rawMetadata, setRawMetadata] = useState<AgentMetadata | null>(null)
   const [loadingMetadata, setLoadingMetadata] = useState(false)
+  const [feedbackHistory, setFeedbackHistory] = useState<any[]>([])
+  const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(false)
+  const [feedbackData, setFeedbackData] = useState<{ [key: string]: any }>({})
 
   const isOwner = account?.address === agent.owner
 
   useEffect(() => {
     loadReputation()
     loadRawMetadata()
+    loadFeedbackHistory()
   }, [agent])
 
   useEffect(() => {
@@ -82,6 +86,62 @@ export default function AgentDetails({
       console.error('Error loading metadata from Walrus:', error)
     } finally {
       setLoadingMetadata(false)
+    }
+  }
+
+  const loadFeedbackHistory = async () => {
+    setLoadingFeedbackHistory(true)
+    try {
+      // Query events to find feedback for this agent
+      const events = await suiClient.queryEvents({
+        query: {
+          MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::reputation_registry::NewFeedback`,
+        },
+        limit: 100,
+      })
+
+      // Filter events for the current agent
+      const agentFeedbacks = events.data
+        .filter((event: any) => {
+          const data = event.parsedJson
+          return String(data.agent_id) === String(agent.agentId)
+        })
+        .map((event: any) => ({
+          agentId: event.parsedJson.agent_id,
+          clientAddress: event.parsedJson.client_address,
+          score: event.parsedJson.score,
+          fileUri: event.parsedJson.file_uri,
+          fileHash: event.parsedJson.file_hash,
+          timestamp: event.timestampMs,
+          transactionDigest: event.id.txDigest,
+        }))
+        .sort((a: any, b: any) => parseInt(b.timestamp) - parseInt(a.timestamp)) // Most recent first
+
+      setFeedbackHistory(agentFeedbacks)
+
+      // Load feedback data from Walrus for each feedback
+      agentFeedbacks.forEach(async (feedback: any) => {
+        const hashKey = Array.isArray(feedback.fileHash)
+          ? feedback.fileHash.join(',')
+          : feedback.fileHash
+
+        if (feedback.fileUri && feedback.fileUri.startsWith('walrus://')) {
+          try {
+            const metadata = await readMetadataFromWalrus(extractBlobId(feedback.fileUri))
+            setFeedbackData((prev) => ({ ...prev, [hashKey]: metadata }))
+          } catch (error) {
+            console.error('Error loading feedback data from Walrus:', error)
+            setFeedbackData((prev) => ({
+              ...prev,
+              [hashKey]: { error: 'Failed to load feedback data' },
+            }))
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Error loading feedback history:', error)
+    } finally {
+      setLoadingFeedbackHistory(false)
     }
   }
 
@@ -731,6 +791,154 @@ export default function AgentDetails({
                 ) : (
                   <p className="text-xs text-gray-500">No metadata available</p>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Feedback History */}
+          <div className="rounded-xl bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">
+                <FontAwesomeIcon icon={faStar} className="mr-2 h-5 w-5 text-yellow-500" />
+                Feedback History
+              </h2>
+              <button
+                onClick={loadFeedbackHistory}
+                disabled={loadingFeedbackHistory}
+                className="rounded-lg bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
+              >
+                <FontAwesomeIcon
+                  icon={faArrowsRotate}
+                  className={`mr-1 h-3 w-3 ${loadingFeedbackHistory ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </button>
+            </div>
+
+            {loadingFeedbackHistory ? (
+              <div className="flex items-center justify-center py-12">
+                <FontAwesomeIcon
+                  icon={faSpinner}
+                  className="mr-2 h-8 w-8 animate-spin text-primary"
+                />
+                <span className="text-gray-600">Loading feedback history...</span>
+              </div>
+            ) : feedbackHistory.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
+                <p className="text-gray-600">No feedback yet for this agent.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {feedbackHistory.map((feedback, idx) => {
+                  const hashKey = Array.isArray(feedback.fileHash)
+                    ? feedback.fileHash.join(',')
+                    : feedback.fileHash
+
+                  // Calculate score color
+                  const scoreColor =
+                    feedback.score >= 80
+                      ? 'bg-green-100 text-green-800 border-green-200'
+                      : feedback.score >= 60
+                        ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                        : 'bg-red-100 text-red-800 border-red-200'
+
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      <div className="mb-3 flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-bold ${scoreColor}`}
+                            >
+                              <FontAwesomeIcon icon={faStar} className="h-3 w-3" />
+                              {feedback.score}/100
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              #{feedbackHistory.length - idx}
+                            </span>
+                          </div>
+                          <p className="mb-1 text-xs text-gray-600">
+                            <span className="font-medium">From:</span>{' '}
+                            <span className="font-mono">
+                              {feedback.clientAddress.slice(0, 6)}...
+                              {feedback.clientAddress.slice(-4)}
+                            </span>
+                          </p>
+                          <p className="mb-2 text-xs text-gray-600">
+                            <span className="font-medium">Date:</span>{' '}
+                            {new Date(parseInt(feedback.timestamp)).toLocaleString()}
+                          </p>
+                          {feedback.transactionDigest && (
+                            <a
+                              href={`https://suiscan.xyz/testnet/tx/${feedback.transactionDigest}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              View Transaction →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Feedback Content */}
+                      {feedback.fileUri && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs font-medium text-gray-700 hover:text-gray-900">
+                            View Feedback Details
+                          </summary>
+                          <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            {feedbackData[hashKey] ? (
+                              <div className="space-y-2 text-xs">
+                                {feedbackData[hashKey].error ? (
+                                  <p className="text-red-600">{feedbackData[hashKey].error}</p>
+                                ) : (
+                                  <>
+                                    {feedbackData[hashKey].feedback && (
+                                      <div>
+                                        <p className="mb-1 font-medium text-gray-700">Feedback:</p>
+                                        <div className="max-h-32 overflow-y-auto rounded border border-gray-300 bg-white p-2">
+                                          <p className="whitespace-pre-wrap text-xs text-gray-900">
+                                            {feedbackData[hashKey].feedback}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {feedbackData[hashKey].score && (
+                                      <p className="text-gray-600">
+                                        <span className="font-medium">Score:</span>{' '}
+                                        {feedbackData[hashKey].score}/100
+                                      </p>
+                                    )}
+                                    {feedbackData[hashKey].client && (
+                                      <p className="text-gray-600">
+                                        <span className="font-medium">Client:</span>{' '}
+                                        <span className="font-mono text-xs">
+                                          {feedbackData[hashKey].client}
+                                        </span>
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                                <FontAwesomeIcon
+                                  icon={faSpinner}
+                                  className="h-3 w-3 animate-spin"
+                                />
+                                Loading feedback details...
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
