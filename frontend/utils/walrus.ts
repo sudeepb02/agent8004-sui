@@ -92,24 +92,10 @@ export async function storeMetadataWithFlow(
 ): Promise<{ blobId: string; walrusUri: string }> {
   try {
     // Dynamic import for client-side only
-    const { WalrusFile, walrus } = await import('@mysten/walrus')
-    const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc')
-    const { getFullnodeUrl } = await import('@mysten/sui/client')
+    const { WalrusFile } = await import('@mysten/walrus')
     
-    // Create a Walrus client - must use SuiJsonRpcClient with network param
-    const client = new SuiJsonRpcClient({
-      url: getFullnodeUrl('testnet'),
-      network: 'testnet',
-    }).$extend(
-      walrus({
-        storageNodeClientOptions: {
-          timeout: 60_000,
-          onError: (error: any) => {
-            console.error('Walrus storage node error:', error)
-          },
-        },
-      })
-    )
+    // Use the centralized client creation
+    const client = await createWalrusClient()
 
     // Convert metadata to JSON string and then to bytes
     const metadataJson = JSON.stringify(metadata, null, 2)
