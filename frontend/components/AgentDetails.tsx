@@ -14,6 +14,8 @@ import {
   faArrowsRotate,
   faPlus,
   faCopy,
+  faLink,
+  faCloudUploadAlt,
 } from '@fortawesome/free-solid-svg-icons'
 import { useSuiClient, useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
@@ -25,6 +27,8 @@ import {
   storeMetadataWithFlow,
   readMetadataFromWalrus,
   extractBlobId,
+  uploadImageToWalrus,
+  uploadImageFromUrlToWalrus,
   type AgentMetadata,
 } from '@/utils/walrus'
 import {
@@ -68,6 +72,10 @@ export default function AgentDetails({
   const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(false)
   const [feedbackData, setFeedbackData] = useState<{ [key: string]: any }>({})
   const [copiedMetadata, setCopiedMetadata] = useState(false)
+  const [imageUploadMode, setImageUploadMode] = useState<'url' | 'file'>('url')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   const isOwner = account?.address === agent.owner
 
@@ -163,13 +171,114 @@ export default function AgentDetails({
     setEditValue('')
     setEditingEndpointIndex(null)
     setEndpointForm({ name: '', endpoint: '', version: '' })
+    setImageFile(null)
+    setImageUrl('')
+  }
+
+  const handleImageUpload = async () => {
+    if (!account?.address) {
+      alert('No wallet connected')
+      return
+    }
+
+    try {
+      setUploadingImage(true)
+
+      let walrusImageUri: string
+
+      if (imageUploadMode === 'file' && imageFile) {
+        // Upload file directly
+        const { blobId } = await uploadImageToWalrus(
+          imageFile,
+          account.address,
+          signAndExecute,
+          suiClient
+        )
+        walrusImageUri = `walrus://${blobId}`
+      } else if (imageUploadMode === 'url' && imageUrl) {
+        // Upload from URL
+        const { blobId } = await uploadImageFromUrlToWalrus(
+          imageUrl,
+          account.address,
+          signAndExecute,
+          suiClient
+        )
+        walrusImageUri = `walrus://${blobId}`
+      } else {
+        throw new Error('Please provide an image file or URL')
+      }
+
+      // Update the editValue with Walrus URI
+      setEditValue(walrusImageUri)
+      setUploadingImage(false)
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      alert(`Error uploading image: ${error.message}`)
+      setUploadingImage(false)
+    }
   }
 
   const handleSaveField = async (field: EditingField) => {
-    if (!field || !editValue.trim() || !account) return
+    if (!field || !account) return
 
     setSaving(true)
     try {
+      let finalValue = editValue.trim()
+
+      // For image field, check if we need to upload to Walrus first
+      if (field === 'image') {
+        // If there's an imageUrl or imageFile that hasn't been uploaded yet
+        // (editValue doesn't start with walrus://), upload it first
+        if (!finalValue.startsWith('walrus://')) {
+          if (imageUploadMode === 'file' && imageFile) {
+            // Upload file to Walrus
+            setUploadingImage(true)
+            try {
+              const { blobId } = await uploadImageToWalrus(
+                imageFile,
+                account.address,
+                signAndExecute,
+                suiClient
+              )
+              finalValue = `walrus://${blobId}`
+            } catch (error: any) {
+              setUploadingImage(false)
+              setSaving(false)
+              alert(`Error uploading image: ${error.message}`)
+              return
+            }
+            setUploadingImage(false)
+          } else if (imageUploadMode === 'url' && imageUrl) {
+            // Upload from URL to Walrus
+            setUploadingImage(true)
+            try {
+              const { blobId } = await uploadImageFromUrlToWalrus(
+                imageUrl,
+                account.address,
+                signAndExecute,
+                suiClient
+              )
+              finalValue = `walrus://${blobId}`
+            } catch (error: any) {
+              setUploadingImage(false)
+              setSaving(false)
+              alert(`Error uploading image: ${error.message}`)
+              return
+            }
+            setUploadingImage(false)
+          } else if (!finalValue) {
+            setSaving(false)
+            alert('Please provide an image URL or file')
+            return
+          }
+        }
+      }
+
+      if (!finalValue) {
+        setSaving(false)
+        return
+      }
+
       const tx = new Transaction()
 
       // Update the appropriate field on-chain
@@ -180,19 +289,19 @@ export default function AgentDetails({
         case 'description':
           tx.moveCall({
             target: `${MODULES.IDENTITY_REGISTRY}::set_description`,
-            arguments: [tx.object(currentAgent.id), tx.pure.string(editValue)],
+            arguments: [tx.object(currentAgent.id), tx.pure.string(finalValue)],
           })
           break
         case 'image':
           tx.moveCall({
             target: `${MODULES.IDENTITY_REGISTRY}::set_image`,
-            arguments: [tx.object(currentAgent.id), tx.pure.string(editValue)],
+            arguments: [tx.object(currentAgent.id), tx.pure.string(finalValue)],
           })
           break
         case 'tokenUri':
           tx.moveCall({
             target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
-            arguments: [tx.object(currentAgent.id), tx.pure.string(editValue)],
+            arguments: [tx.object(currentAgent.id), tx.pure.string(finalValue)],
           })
           break
       }
@@ -203,11 +312,13 @@ export default function AgentDetails({
           {
             onSuccess: () => {
               // Update local state
-              const updatedAgent = { ...currentAgent, [field]: editValue }
+              const updatedAgent = { ...currentAgent, [field]: finalValue }
               setCurrentAgent(updatedAgent)
               if (onAgentUpdate) onAgentUpdate(updatedAgent)
               setEditingField(null)
               setEditValue('')
+              setImageUrl('')
+              setImageFile(null)
               resolve()
             },
             onError: (error) => {
@@ -499,28 +610,153 @@ export default function AgentDetails({
                     </div>
                     {editingField === 'image' ? (
                       <div className="mt-1 space-y-2">
-                        <input
-                          type="text"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:ring-2 focus:ring-primary"
-                          disabled={saving}
-                        />
+                        {/* Image Upload Mode Toggle */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setImageUploadMode('url')}
+                            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                              imageUploadMode === 'url'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            <FontAwesomeIcon icon={faLink} className="mr-1" />
+                            URL
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImageUploadMode('file')}
+                            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                              imageUploadMode === 'file'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-1" />
+                            File
+                          </button>
+                        </div>
+
+                        {/* Image URL Input */}
+                        {imageUploadMode === 'url' && (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={imageUrl}
+                              onChange={(e) => setImageUrl(e.target.value)}
+                              placeholder="https://example.com/image.png"
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:ring-2 focus:ring-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleImageUpload}
+                              disabled={!imageUrl || uploadingImage}
+                              className="w-full rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {uploadingImage ? (
+                                <>
+                                  <FontAwesomeIcon icon={faSpinner} className="mr-1 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-1" />
+                                  Upload to Walrus (Optional)
+                                </>
+                              )}
+                            </button>
+                            <p className="text-xs text-gray-500">
+                              Or click Save below to upload and update in one step
+                            </p>
+                          </div>
+                        )}
+
+                        {/* File Upload Input */}
+                        {imageUploadMode === 'file' && (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  setImageFile(file)
+                                }
+                              }}
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                            />
+                            {imageFile && (
+                              <p className="text-xs text-gray-600">
+                                {imageFile.name} ({(imageFile.size / 1024).toFixed(2)} KB)
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleImageUpload}
+                              disabled={!imageFile || uploadingImage}
+                              className="w-full rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {uploadingImage ? (
+                                <>
+                                  <FontAwesomeIcon icon={faSpinner} className="mr-1 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-1" />
+                                  Upload to Walrus (Optional)
+                                </>
+                              )}
+                            </button>
+                            <p className="text-xs text-gray-500">
+                              Or click Save below to upload and update in one step
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Current/New URI Display */}
+                        {(editValue || imageUrl || imageFile) && (
+                          <div className="rounded bg-green-50 p-2">
+                            <p className="text-xs font-medium text-green-900">
+                              {editValue && editValue.startsWith('walrus://')
+                                ? 'New Image URI (Uploaded to Walrus):'
+                                : imageUrl
+                                  ? 'Image URL to Upload:'
+                                  : 'File to Upload:'}
+                            </p>
+                            <p className="break-all font-mono text-xs text-green-700">
+                              {editValue && editValue.startsWith('walrus://')
+                                ? editValue
+                                : imageUrl
+                                  ? imageUrl
+                                  : imageFile?.name}
+                            </p>
+                          </div>
+                        )}
+
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleSaveField('image')}
-                            disabled={saving || !editValue.trim()}
+                            disabled={
+                              saving ||
+                              uploadingImage ||
+                              (!editValue.trim() && !imageUrl && !imageFile)
+                            }
                             className="rounded bg-primary px-2 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
                           >
-                            {saving ? (
-                              <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+                            {saving || uploadingImage ? (
+                              <>
+                                <FontAwesomeIcon icon={faSpinner} className="animate-spin" />{' '}
+                                {uploadingImage ? 'Uploading...' : 'Saving...'}
+                              </>
                             ) : (
                               'Save'
                             )}
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            disabled={saving}
+                            disabled={saving || uploadingImage}
                             className="rounded bg-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-300"
                           >
                             Cancel
