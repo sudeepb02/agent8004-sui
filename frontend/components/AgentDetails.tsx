@@ -1,29 +1,46 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft, faStar, faCheckCircle, faImage, faGlobe, faShieldAlt, faCode } from '@fortawesome/free-solid-svg-icons'
-import { useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
+import { faArrowLeft, faStar, faCheckCircle, faImage, faGlobe, faShieldAlt, faCode, faPencil, faSave, faTimes, faSpinner, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons'
+import { useSuiClient, useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/sui/bcs'
 import { useState, useEffect } from 'react'
-import { CONTRACT_CONFIG } from '@/config/contracts'
-import type { Agent, Reputation } from '@/types'
+import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
+import type { Agent, Reputation, Endpoint } from '@/types'
+import { storeMetadataWithFlow, readMetadataFromWalrus, extractBlobId, type AgentMetadata } from '@/utils/walrus'
 
 interface AgentDetailsProps {
   agent: Agent
   onBack: () => void
   onGiveFeedback: () => void
   onRequestValidation: () => void
+  onAgentUpdate?: (updatedAgent: Agent) => void
 }
 
-export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestValidation }: AgentDetailsProps) {
+type EditingField = 'name' | 'description' | 'image' | 'tokenUri' | null
+
+export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestValidation, onAgentUpdate }: AgentDetailsProps) {
   const suiClient = useSuiClient()
   const account = useCurrentAccount()
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   const [reputation, setReputation] = useState<Reputation | null>(null)
   const [loading, setLoading] = useState(false)
+  const [editingField, setEditingField] = useState<EditingField>(null)
+  const [editValue, setEditValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [currentAgent, setCurrentAgent] = useState<Agent>(agent)
+  const [editingEndpointIndex, setEditingEndpointIndex] = useState<number | null>(null)
+  const [endpointForm, setEndpointForm] = useState({ name: '', endpoint: '', version: '' })
+
+  const isOwner = account?.address === agent.owner
 
   useEffect(() => {
     loadReputation()
+  }, [agent])
+
+  useEffect(() => {
+    setCurrentAgent(agent)
   }, [agent])
 
   const loadReputation = async () => {
@@ -82,6 +99,299 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
     }
   }
 
+  const handleStartEdit = (field: EditingField, currentValue: string) => {
+    setEditingField(field)
+    setEditValue(currentValue)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingField(null)
+    setEditValue('')
+    setEditingEndpointIndex(null)
+    setEndpointForm({ name: '', endpoint: '', version: '' })
+  }
+
+  const handleSaveField = async (field: EditingField) => {
+    if (!field || !editValue.trim() || !account) return
+    
+    setSaving(true)
+    try {
+      const tx = new Transaction()
+
+      // Update the appropriate field on-chain
+      switch (field) {
+        case 'name':
+          // Name is stored in contract - no metadata update needed
+          break
+        case 'description':
+          tx.moveCall({
+            target: `${MODULES.IDENTITY_REGISTRY}::set_description`,
+            arguments: [
+              tx.object(currentAgent.id),
+              tx.pure.string(editValue),
+            ],
+          })
+          break
+        case 'image':
+          tx.moveCall({
+            target: `${MODULES.IDENTITY_REGISTRY}::set_image`,
+            arguments: [
+              tx.object(currentAgent.id),
+              tx.pure.string(editValue),
+            ],
+          })
+          break
+        case 'tokenUri':
+          tx.moveCall({
+            target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
+            arguments: [
+              tx.object(currentAgent.id),
+              tx.pure.string(editValue),
+            ],
+          })
+          break
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecute(
+          { transaction: tx },
+          {
+            onSuccess: () => {
+              // Update local state
+              const updatedAgent = { ...currentAgent, [field]: editValue }
+              setCurrentAgent(updatedAgent)
+              if (onAgentUpdate) onAgentUpdate(updatedAgent)
+              setEditingField(null)
+              setEditValue('')
+              resolve()
+            },
+            onError: (error) => {
+              console.error('Failed to update field:', error)
+              alert('Failed to update field. Please try again.')
+              reject(error)
+            },
+          }
+        )
+      })
+    } catch (error) {
+      console.error('Error saving field:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAddEndpoint = async () => {
+    if (!endpointForm.name.trim() || !endpointForm.endpoint.trim() || !account) return
+
+    setSaving(true)
+    try {
+      const tx = new Transaction()
+      tx.moveCall({
+        target: `${MODULES.IDENTITY_REGISTRY}::add_endpoint`,
+        arguments: [
+          tx.object(currentAgent.id),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(endpointForm.name))),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(endpointForm.endpoint))),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(endpointForm.version || '1.0.0'))),
+        ],
+      })
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecute(
+          { transaction: tx },
+          {
+            onSuccess: () => {
+              const newEndpoint: Endpoint = {
+                name: endpointForm.name,
+                endpoint: endpointForm.endpoint,
+                version: endpointForm.version || '1.0.0',
+              }
+              const updatedAgent = {
+                ...currentAgent,
+                endpoints: [...currentAgent.endpoints, newEndpoint],
+              }
+              setCurrentAgent(updatedAgent)
+              if (onAgentUpdate) onAgentUpdate(updatedAgent)
+              setEndpointForm({ name: '', endpoint: '', version: '' })
+              setEditingEndpointIndex(null)
+              resolve()
+            },
+            onError: (error) => {
+              console.error('Failed to add endpoint:', error)
+              alert('Failed to add endpoint. Please try again.')
+              reject(error)
+            },
+          }
+        )
+      })
+    } catch (error) {
+      console.error('Error adding endpoint:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdateMetadataField = async (fieldName: string, value: any) => {
+    if (!account || !currentAgent.tokenUri) {
+      alert('Token URI must be set before updating metadata fields')
+      return
+    }
+
+    setSaving(true)
+    try {
+      // Read existing metadata from Walrus
+      let existingMetadata: AgentMetadata | null = null
+      if (currentAgent.tokenUri.startsWith('walrus://')) {
+        try {
+          existingMetadata = await readMetadataFromWalrus(extractBlobId(currentAgent.tokenUri))
+        } catch (error) {
+          console.log('No existing metadata, creating new')
+        }
+      }
+
+      // Create updated metadata
+      const updatedMetadata: AgentMetadata = {
+        type: existingMetadata?.type || 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+        name: currentAgent.name,
+        description: currentAgent.description,
+        image: currentAgent.image,
+        endpoints: currentAgent.endpoints,
+        ...existingMetadata,
+        [fieldName]: value,
+      }
+
+      // Store updated metadata on Walrus
+      const { walrusUri } = await storeMetadataWithFlow(
+        updatedMetadata,
+        account.address,
+        signAndExecute,
+        suiClient
+      )
+
+      // Update token URI on-chain
+      const tx = new Transaction()
+      tx.moveCall({
+        target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
+        arguments: [
+          tx.object(currentAgent.id),
+          tx.pure.string(walrusUri),
+        ],
+      })
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecute(
+          { transaction: tx },
+          {
+            onSuccess: () => {
+              const updatedAgent = {
+                ...currentAgent,
+                tokenUri: walrusUri,
+                metadata: updatedMetadata,
+              }
+              setCurrentAgent(updatedAgent)
+              if (onAgentUpdate) onAgentUpdate(updatedAgent)
+              resolve()
+            },
+            onError: (error) => {
+              console.error('Failed to update token URI:', error)
+              reject(error)
+            },
+          }
+        )
+      })
+
+      alert('Metadata updated successfully!')
+    } catch (error) {
+      console.error('Error updating metadata:', error)
+      alert('Failed to update metadata. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const renderEditableField = (
+    label: string,
+    field: EditingField,
+    value: string,
+    isMultiline: boolean = false
+  ) => {
+    const isEditing = editingField === field
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900">{label}</h2>
+          {isOwner && !isEditing && (
+            <button
+              onClick={() => handleStartEdit(field, value)}
+              className="text-primary hover:text-indigo-700 transition-colors"
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faPencil} className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {isEditing ? (
+          <div className="space-y-3">
+            {isMultiline ? (
+              <textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                rows={4}
+                disabled={saving}
+              />
+            ) : (
+              <input
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={saving}
+              />
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSaveField(field)}
+                disabled={saving || !editValue.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? (
+                  <><FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><FontAwesomeIcon icon={faSave} className="w-4 h-4" /> Save</>
+                )}
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                disabled={saving}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+              >
+                <FontAwesomeIcon icon={faTimes} className="w-4 h-4 mr-2" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 bg-gray-50 rounded-lg">
+            {field === 'image' || field === 'tokenUri' ? (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:text-indigo-700 text-sm break-all"
+              >
+                {value}
+              </a>
+            ) : (
+              <p className="text-gray-700 leading-relaxed">{value}</p>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <button
@@ -97,11 +407,11 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
         <div className="relative">
           {/* Banner/Image */}
           <div className="relative h-72 bg-gradient-to-br from-blue-500 to-indigo-600 overflow-hidden">
-            {agent.image ? (
+            {currentAgent.image ? (
               <>
                 <img
-                  src={agent.image}
-                  alt={agent.name || `Agent ${agent.agentId}`}
+                  src={currentAgent.image}
+                  alt={currentAgent.name || `Agent ${currentAgent.agentId}`}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     // Fallback if image fails to load
@@ -115,7 +425,7 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             ) : (
               <img
                 src="/assets/fallback-agent.svg"
-                alt={agent.name || `Agent ${agent.agentId}`}
+                alt={currentAgent.name || `Agent ${currentAgent.agentId}`}
                 className="w-full h-full object-contain p-16"
               />
             )}
@@ -123,7 +433,7 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             {/* Agent Avatar Overlay */}
             <div className="absolute bottom-0 left-8 transform translate-y-1/2">
               <div className="bg-gradient-to-br from-blue-600 to-indigo-700 w-32 h-32 rounded-2xl flex items-center justify-center text-white font-bold text-5xl shadow-2xl border-4 border-white">
-                {agent.agentId.slice(0, 2)}
+                {currentAgent.agentId.slice(0, 2)}
               </div>
             </div>
 
@@ -141,15 +451,15 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                  {agent.name || `Agent ${agent.agentId}`}
+                  {currentAgent.name || `Agent ${currentAgent.agentId}`}
                 </h1>
                 <div className="flex items-center gap-3 text-gray-600">
                   <span className="font-mono text-sm bg-gray-100 px-3 py-1 rounded-lg">
-                    ID: {agent.agentId}
+                    ID: {currentAgent.agentId}
                   </span>
-                  {agent.owner && (
+                  {currentAgent.owner && (
                     <span className="font-mono text-sm bg-gray-100 px-3 py-1 rounded-lg">
-                      Owner: {agent.owner.slice(0, 6)}...{agent.owner.slice(-4)}
+                      Owner: {currentAgent.owner.slice(0, 6)}...{currentAgent.owner.slice(-4)}
                     </span>
                   )}
                 </div>
@@ -164,92 +474,130 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             {/* Left Column - Main Info */}
             <div className="lg:col-span-2 space-y-6">
               {/* Agent Description */}
-              {agent.description && (
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Agent Description</h2>
-                  <p className="text-gray-700 leading-relaxed">
-                    {agent.description}
-                  </p>
-                </div>
-              )}
+              {currentAgent.description && renderEditableField('Agent Description', 'description', currentAgent.description, true)}
 
               {/* Image URI */}
-              {agent.image && (
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Image URI</h2>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <a
-                      href={agent.image}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:text-indigo-700 text-sm break-all"
-                    >
-                      {agent.image}
-                    </a>
-                  </div>
-                </div>
-              )}
+              {currentAgent.image && renderEditableField('Image URI', 'image', currentAgent.image)}
 
               {/* Token URI */}
-              {agent.tokenUri && (
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Token URI</h2>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <a
-                      href={agent.tokenUri}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:text-indigo-700 text-sm break-all"
-                    >
-                      {agent.tokenUri}
-                    </a>
-                  </div>
-                </div>
-              )}
+              {currentAgent.tokenUri && renderEditableField('Token URI', 'tokenUri', currentAgent.tokenUri)}
 
               {/* Endpoints */}
-              {agent.endpoints && agent.endpoints.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+              <div className="bg-white border border-gray-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
                     <FontAwesomeIcon icon={faGlobe} className="w-5 h-5 mr-3 text-blue-600" />
                     Endpoints
                   </h2>
-                  <div className="space-y-3">
-                    {agent.endpoints.map((endpoint, idx) => (
-                      <div key={idx} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                        <div className="grid grid-cols-1 gap-2">
+                  {isOwner && editingEndpointIndex === null && (
+                    <button
+                      onClick={() => setEditingEndpointIndex(-1)}
+                      className="text-primary hover:text-indigo-700 transition-colors flex items-center gap-1 text-sm"
+                      title="Add Endpoint"
+                    >
+                      <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
+                      Add
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {currentAgent.endpoints?.map((endpoint, idx) => (
+                    <div key={idx} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                      <div className="grid grid-cols-1 gap-2">
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</label>
+                          <p className="text-sm font-semibold text-gray-900 mt-1">{endpoint.name}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint</label>
+                          <p className="text-sm text-gray-700 font-mono break-all mt-1">
+                            {endpoint.endpoint}
+                          </p>
+                        </div>
+                        {endpoint.version && (
                           <div>
-                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</label>
-                            <p className="text-sm font-semibold text-gray-900 mt-1">{endpoint.name}</p>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Version</label>
+                            <p className="text-sm text-gray-900 mt-1">v{endpoint.version}</p>
                           </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint</label>
-                            <p className="text-sm text-gray-700 font-mono break-all mt-1">
-                              {endpoint.endpoint}
-                            </p>
-                          </div>
-                          {endpoint.version && (
-                            <div>
-                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Version</label>
-                              <p className="text-sm text-gray-900 mt-1">v{endpoint.version}</p>
-                            </div>
-                          )}
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Add Endpoint Form */}
+                  {editingEndpointIndex === -1 && (
+                    <div className="p-4 bg-white border-2 border-primary rounded-lg">
+                      <h3 className="font-semibold text-gray-900 mb-3">Add New Endpoint</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</label>
+                          <input
+                            type="text"
+                            value={endpointForm.name}
+                            onChange={(e) => setEndpointForm({ ...endpointForm, name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent mt-1"
+                            placeholder="API Name"
+                            disabled={saving}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint URL</label>
+                          <input
+                            type="text"
+                            value={endpointForm.endpoint}
+                            onChange={(e) => setEndpointForm({ ...endpointForm, endpoint: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent mt-1"
+                            placeholder="https://api.example.com/v1"
+                            disabled={saving}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Version</label>
+                          <input
+                            type="text"
+                            value={endpointForm.version}
+                            onChange={(e) => setEndpointForm({ ...endpointForm, version: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent mt-1"
+                            placeholder="1.0.0"
+                            disabled={saving}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleAddEndpoint}
+                            disabled={saving || !endpointForm.name.trim() || !endpointForm.endpoint.trim()}
+                            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {saving ? (
+                              <><FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" /> Adding...</>
+                            ) : (
+                              <><FontAwesomeIcon icon={faPlus} className="w-4 h-4" /> Add Endpoint</>
+                            )}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={saving}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                          >
+                            <FontAwesomeIcon icon={faTimes} className="w-4 h-4 mr-2" />
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Supported Trust */}
-              {agent.metadata?.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
+              {currentAgent.metadata?.supportedTrust && currentAgent.metadata.supportedTrust.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                     <FontAwesomeIcon icon={faShieldAlt} className="w-5 h-5 mr-3 text-purple-600" />
                     Trust Mechanisms
                   </h2>
                   <div className="flex flex-wrap gap-2">
-                    {agent.metadata.supportedTrust.map((trust, idx) => (
+                    {currentAgent.metadata.supportedTrust.map((trust, idx) => (
                       <span
                         key={idx}
                         className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md"
@@ -262,14 +610,14 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
               )}
 
               {/* Registrations */}
-              {agent.metadata?.registrations && agent.metadata.registrations.length > 0 && (
+              {currentAgent.metadata?.registrations && currentAgent.metadata.registrations.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                     <FontAwesomeIcon icon={faCode} className="w-5 h-5 mr-3 text-green-600" />
                     Registrations
                   </h2>
                   <div className="space-y-3">
-                    {agent.metadata.registrations.map((reg, idx) => (
+                    {currentAgent.metadata.registrations.map((reg, idx) => (
                       <div key={idx} className="p-4 bg-green-50 rounded-lg border border-green-100">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
@@ -293,12 +641,12 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
                 <div className="space-y-3">
                   <div className="p-3 bg-gray-50 rounded-lg">
                     <label className="text-sm font-medium text-gray-500">Object ID</label>
-                    <p className="text-gray-900 font-mono text-sm break-all mt-1">{agent.id}</p>
+                    <p className="text-gray-900 font-mono text-sm break-all mt-1">{currentAgent.id}</p>
                   </div>
-                  {agent.metadata?.type && (
+                  {currentAgent.metadata?.type && (
                     <div className="p-3 bg-gray-50 rounded-lg">
                       <label className="text-sm font-medium text-gray-500">Type</label>
-                      <p className="text-gray-900 text-sm break-all mt-1">{agent.metadata.type}</p>
+                      <p className="text-gray-900 text-sm break-all mt-1">{currentAgent.metadata.type}</p>
                     </div>
                   )}
                 </div>

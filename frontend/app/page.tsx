@@ -1,19 +1,18 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faLock, faRocket, faStore, faUser, faPlus, faDatabase, faShieldAlt, faStar } from '@fortawesome/free-solid-svg-icons'
+import { faLock, faRocket, faStore, faUser, faPlus, faShieldAlt, faStar } from '@fortawesome/free-solid-svg-icons'
 import { ConnectButton, useCurrentAccount } from '@mysten/dapp-kit'
 import { useState } from 'react'
 import AgentList from '@/components/AgentList'
 import RegisterAgent from '@/components/RegisterAgent'
-import SetMetadata from '@/components/SetMetadata'
 import AgentMarketplace from '@/components/AgentMarketplace'
 import AgentDetails from '@/components/AgentDetails'
 import GiveFeedback from '@/components/GiveFeedback'
 import ValidationComponent from '@/components/ValidationComponent'
 import type { Agent } from '@/types'
 
-type ViewType = 'marketplace' | 'register' | 'myAgents' | 'metadata' | 'validation' | 'agentDetails' | 'giveFeedback'
+type ViewType = 'marketplace' | 'register' | 'myAgents' | 'validation' | 'agentDetails' | 'giveFeedback'
 
 export default function Home() {
   const account = useCurrentAccount()
@@ -91,8 +90,6 @@ export default function Home() {
         return <RegisterAgent />
       case 'myAgents':
         return <AgentList onSelectAgent={handleSelectAgent} />
-      case 'metadata':
-        return <SetMetadata />
       case 'validation':
         return <ValidationComponent onBack={handleBackToMarketplace} />
       case 'agentDetails':
@@ -174,17 +171,6 @@ export default function Home() {
               >
                 <FontAwesomeIcon icon={faUser} className="w-4 h-4 mr-2" />
                 My Agents
-              </button>
-              <button
-                onClick={() => setCurrentView('metadata')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center ${
-                  currentView === 'metadata'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <FontAwesomeIcon icon={faDatabase} className="w-4 h-4 mr-2" />
-                Metadata
               </button>
               <button
                 onClick={() => setCurrentView('validation')}
