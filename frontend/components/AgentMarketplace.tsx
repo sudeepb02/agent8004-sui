@@ -11,9 +11,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { useSuiClient } from '@mysten/dapp-kit'
 import { useState, useEffect } from 'react'
-import { CONTRACT_CONFIG, STRUCT_TYPES } from '@/config/contracts'
-import type { Agent, Endpoint } from '@/types'
-import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
+import type { Agent } from '@/types'
+import { loadAllAgents as loadAllAgentsUtil } from '@/utils/agentUtils'
 
 interface AgentMarketplaceProps {
   onSelectAgent: (agent: Agent) => void
@@ -32,105 +31,7 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
   const loadAllAgents = async () => {
     setLoading(true)
     try {
-      // Query all Agent objects by type instead of relying on events
-      // This gets all Agent objects in the system
-      const response = await suiClient.queryEvents({
-        query: {
-          MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::identity_registry::AgentRegistered`,
-        },
-        limit: 50,
-      })
-
-      // Get unique agent IDs and owners from events
-      const agentData = new Map<string, string>() // agent_id -> owner
-
-      for (const event of response.data) {
-        const parsedJson = event.parsedJson as any
-        if (parsedJson?.agent_id) {
-          agentData.set(String(parsedJson.agent_id), parsedJson.owner)
-        }
-      }
-
-      // Now query for all Agent objects of the correct type
-      // We'll use getDynamicFields on the registry to get agent object IDs
-      const agentResults = await Promise.all(
-        Array.from(agentData.keys()).map(async (agentId): Promise<Agent | null> => {
-          try {
-            // Query for objects with this agent_id
-            const objects = await suiClient.getOwnedObjects({
-              owner: agentData.get(agentId)!,
-              filter: {
-                StructType: STRUCT_TYPES.AGENT,
-              },
-              options: {
-                showContent: true,
-                showType: true,
-              },
-            })
-
-            // Find the agent with matching agent_id
-            for (const obj of objects.data) {
-              if (obj.data?.content?.dataType === 'moveObject') {
-                const fields = (obj.data.content as any).fields
-
-                if (String(fields.agent_id) === agentId) {
-                  // Debug: Log the raw endpoint data
-                  console.log('Raw agent fields:', fields)
-                  console.log('Raw endpoints data:', fields.endpoints)
-
-                  // Parse endpoints from the Move contract
-                  const endpoints: Endpoint[] =
-                    fields.endpoints?.map((ep: any) => {
-                      // Handle both direct field access and potential wrapping
-                      const name = ep.fields?.name || ep.name || ''
-                      const endpoint = ep.fields?.endpoint || ep.endpoint || ''
-                      const version = ep.fields?.version || ep.version || ''
-
-                      console.log('Parsed endpoint:', { name, endpoint, version })
-
-                      return {
-                        name,
-                        endpoint,
-                        version,
-                      }
-                    }) || []
-
-                  console.log('Final endpoints array:', endpoints)
-
-                  const agent: Agent = {
-                    id: obj.data.objectId,
-                    agentId: fields.agent_id,
-                    name: fields.name || '',
-                    description: fields.description || '',
-                    image: fields.image || '',
-                    tokenUri: fields.token_uri || '',
-                    endpoints,
-                    owner: agentData.get(agentId) || '',
-                  }
-
-                  // Try to fetch additional metadata from Walrus if tokenUri exists
-                  if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
-                    try {
-                      const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
-                      agent.metadata = metadata
-                    } catch (error) {
-                      console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
-                    }
-                  }
-
-                  return agent
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching agent ${agentId}:`, error)
-          }
-          return null
-        })
-      )
-
-      // Filter out null values and set agents
-      const agentList = agentResults.filter((agent): agent is Agent => agent !== null)
+      const agentList = await loadAllAgentsUtil(suiClient)
       setAgents(agentList)
     } catch (error) {
       console.error('Error loading agents:', error)

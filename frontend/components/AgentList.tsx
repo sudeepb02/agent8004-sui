@@ -4,9 +4,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBox, faRotate, faImage } from '@fortawesome/free-solid-svg-icons'
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit'
 import { useState, useEffect } from 'react'
-import { STRUCT_TYPES } from '@/config/contracts'
-import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
-import type { Agent, Endpoint } from '@/types'
+import { loadAgentsByOwner } from '@/utils/agentUtils'
+import type { Agent } from '@/types'
 
 interface AgentListProps {
   onSelectAgent?: (agent: Agent) => void
@@ -29,73 +28,7 @@ export default function AgentList({ onSelectAgent }: AgentListProps) {
 
     setLoading(true)
     try {
-      // Get all objects owned by the user of type Agent
-      const objects = await suiClient.getOwnedObjects({
-        owner: account.address,
-        filter: {
-          StructType: STRUCT_TYPES.AGENT,
-        },
-        options: {
-          showContent: true,
-          showType: true,
-        },
-      })
-
-      const agentList: Agent[] = await Promise.all(
-        objects.data
-          .filter((obj) => obj.data?.content?.dataType === 'moveObject')
-          .map(async (obj: any) => {
-            const fields = obj.data.content.fields
-
-            // Debug: Log the raw endpoint data
-            console.log('Raw agent fields:', fields)
-            console.log('Raw endpoints data:', fields.endpoints)
-
-            // Parse endpoints from the Move contract
-            const endpoints: Endpoint[] =
-              fields.endpoints?.map((ep: any) => {
-                // Handle both direct field access and potential wrapping
-                const name = ep.fields?.name || ep.name || ''
-                const endpoint = ep.fields?.endpoint || ep.endpoint || ''
-                const version = ep.fields?.version || ep.version || ''
-
-                console.log('Parsed endpoint:', { name, endpoint, version })
-
-                return {
-                  name,
-                  endpoint,
-                  version,
-                }
-              }) || []
-
-            console.log('Final endpoints array:', endpoints)
-
-            const agent: Agent = {
-              id: obj.data.objectId,
-              agentId: fields.agent_id,
-              name: fields.name || '',
-              description: fields.description || '',
-              image: fields.image || '',
-              tokenUri: fields.token_uri || '',
-              endpoints,
-              owner: account.address,
-            }
-
-            // Try to fetch additional metadata from Walrus if tokenUri exists
-            // This will contain other extended fields
-            if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
-              try {
-                const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
-                agent.metadata = metadata
-              } catch (error) {
-                console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
-              }
-            }
-
-            return agent
-          })
-      )
-
+      const agentList = await loadAgentsByOwner(suiClient, account.address)
       setAgents(agentList)
     } catch (error) {
       console.error('Error loading agents:', error)

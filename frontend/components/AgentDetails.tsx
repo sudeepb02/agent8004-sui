@@ -27,6 +27,12 @@ import {
   extractBlobId,
   type AgentMetadata,
 } from '@/utils/walrus'
+import {
+  loadAgentById,
+  loadAgentReputation,
+  loadAgentFeedbackHistory,
+  loadFeedbackData,
+} from '@/utils/agentUtils'
 
 interface AgentDetailsProps {
   agent: Agent
@@ -94,31 +100,7 @@ export default function AgentDetails({
   const loadFeedbackHistory = async () => {
     setLoadingFeedbackHistory(true)
     try {
-      // Query events to find feedback for this agent
-      const events = await suiClient.queryEvents({
-        query: {
-          MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::reputation_registry::NewFeedback`,
-        },
-        limit: 100,
-      })
-
-      // Filter events for the current agent
-      const agentFeedbacks = events.data
-        .filter((event: any) => {
-          const data = event.parsedJson
-          return String(data.agent_id) === String(agent.agentId)
-        })
-        .map((event: any) => ({
-          agentId: event.parsedJson.agent_id,
-          clientAddress: event.parsedJson.client_address,
-          score: event.parsedJson.score,
-          fileUri: event.parsedJson.file_uri,
-          fileHash: event.parsedJson.file_hash,
-          timestamp: event.timestampMs,
-          transactionDigest: event.id.txDigest,
-        }))
-        .sort((a: any, b: any) => parseInt(b.timestamp) - parseInt(a.timestamp)) // Most recent first
-
+      const agentFeedbacks = await loadAgentFeedbackHistory(suiClient, agent.agentId)
       setFeedbackHistory(agentFeedbacks)
 
       // Load feedback data from Walrus for each feedback
@@ -127,16 +109,10 @@ export default function AgentDetails({
           ? feedback.fileHash.join(',')
           : feedback.fileHash
 
-        if (feedback.fileUri && feedback.fileUri.startsWith('walrus://')) {
-          try {
-            const metadata = await readMetadataFromWalrus(extractBlobId(feedback.fileUri))
-            setFeedbackData((prev) => ({ ...prev, [hashKey]: metadata }))
-          } catch (error) {
-            console.error('Error loading feedback data from Walrus:', error)
-            setFeedbackData((prev) => ({
-              ...prev,
-              [hashKey]: { error: 'Failed to load feedback data' },
-            }))
+        if (feedback.fileUri) {
+          const data = await loadFeedbackData(feedback.fileUri)
+          if (data) {
+            setFeedbackData((prev) => ({ ...prev, [hashKey]: data }))
           }
         }
       })
@@ -149,43 +125,9 @@ export default function AgentDetails({
 
   const loadAgentFromBlockchain = async () => {
     try {
-      const agentObject = await suiClient.getObject({
-        id: currentAgent.id,
-        options: {
-          showContent: true,
-          showType: true,
-        },
-      })
+      const updatedAgent = await loadAgentById(suiClient, currentAgent.id, currentAgent.owner)
 
-      if (agentObject.data?.content?.dataType === 'moveObject') {
-        const fields = (agentObject.data.content as any).fields
-
-        console.log('Reloaded agent fields:', fields)
-        console.log('Reloaded endpoints:', fields.endpoints)
-
-        // Parse endpoints with improved handling
-        const endpoints: Endpoint[] =
-          fields.endpoints?.map((ep: any) => {
-            const name = ep.fields?.name || ep.name || ''
-            const endpoint = ep.fields?.endpoint || ep.endpoint || ''
-            const version = ep.fields?.version || ep.version || ''
-
-            console.log('Parsed endpoint on reload:', { name, endpoint, version })
-
-            return { name, endpoint, version }
-          }) || []
-
-        console.log('Final reloaded endpoints:', endpoints)
-
-        const updatedAgent: Agent = {
-          ...currentAgent,
-          name: fields.name || currentAgent.name,
-          description: fields.description || currentAgent.description,
-          image: fields.image || currentAgent.image,
-          tokenUri: fields.token_uri || currentAgent.tokenUri,
-          endpoints,
-        }
-
+      if (updatedAgent) {
         setCurrentAgent(updatedAgent)
         if (onAgentUpdate) onAgentUpdate(updatedAgent)
       }
@@ -197,45 +139,8 @@ export default function AgentDetails({
   const loadReputation = async () => {
     setLoading(true)
     try {
-      // Call the reputation registry to get feedback summary
-      const tx = new Transaction()
-      tx.moveCall({
-        target: `${CONTRACT_CONFIG.PACKAGE_ID}::reputation_registry::get_summary`,
-        arguments: [tx.object(CONTRACT_CONFIG.REPUTATION_REGISTRY_ID), tx.pure.u64(agent.agentId)],
-      })
-
-      const result = await suiClient.devInspectTransactionBlock({
-        sender:
-          account?.address || '0x0000000000000000000000000000000000000000000000000000000000000000',
-        transactionBlock: tx as any,
-      })
-
-      // Parse the result from return values
-      if (result.results && result.results[0] && result.results[0].returnValues) {
-        const returnValues = result.results[0].returnValues
-        // returnValues[0] is feedback count (u64), returnValues[1] is average score (u8)
-        const feedbackCountBytes = returnValues[0]?.[0]
-        const averageScoreBytes = returnValues[1]?.[0]
-
-        const feedbackCount = feedbackCountBytes
-          ? bcs.u64().parse(new Uint8Array(feedbackCountBytes))
-          : 0
-        const averageScore = averageScoreBytes
-          ? bcs.u8().parse(new Uint8Array(averageScoreBytes))
-          : 0
-
-        setReputation({
-          feedbackCount: Number(feedbackCount),
-          averageScore: Number(averageScore),
-          feedbacks: [],
-        })
-      } else {
-        setReputation({
-          feedbackCount: 0,
-          averageScore: 0,
-          feedbacks: [],
-        })
-      }
+      const reputationData = await loadAgentReputation(suiClient, agent.agentId, account?.address)
+      setReputation(reputationData)
     } catch (error) {
       console.error('Error loading reputation:', error)
       setReputation({

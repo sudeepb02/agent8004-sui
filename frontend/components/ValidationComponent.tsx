@@ -6,8 +6,9 @@ import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/sui/bcs'
 import { useState, useEffect } from 'react'
-import { CONTRACT_CONFIG, MODULES, STRUCT_TYPES } from '@/config/contracts'
+import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
 import { storeMetadataWithFlow, readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
+import { loadAgentsByOwner } from '@/utils/agentUtils'
 import type { Agent } from '@/types'
 
 interface ValidationComponentProps {
@@ -58,34 +59,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
     if (!account) return
 
     try {
-      const objects = await suiClient.getOwnedObjects({
-        owner: account.address,
-        filter: {
-          StructType: STRUCT_TYPES.AGENT,
-        },
-        options: {
-          showContent: true,
-          showType: true,
-        },
-      })
-
-      const agentList: Agent[] = objects.data
-        .filter((obj) => obj.data?.content?.dataType === 'moveObject')
-        .map((obj: any) => {
-          const fields = obj.data.content.fields
-
-          return {
-            id: obj.data.objectId,
-            agentId: fields.agent_id,
-            name: fields.name || '',
-            description: fields.description || '',
-            image: fields.image || '',
-            tokenUri: fields.token_uri || '',
-            endpoints: [],
-            owner: fields.owner,
-          }
-        })
-
+      const agentList = await loadAgentsByOwner(suiClient, account.address)
       setAgents(agentList)
       if (agentList.length > 0 && !selectedAgent) {
         setSelectedAgent(agentList[0].id)

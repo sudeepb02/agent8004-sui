@@ -17,13 +17,14 @@ import {
 import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { useState, useEffect } from 'react'
-import { CONTRACT_CONFIG, MODULES, STRUCT_TYPES } from '@/config/contracts'
+import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
 import {
   storeMetadataWithFlow,
   type AgentMetadata,
   type Endpoint,
   readMetadataFromWalrus,
 } from '@/utils/walrus'
+import { loadAgentsByOwner } from '@/utils/agentUtils'
 
 interface Agent {
   id: string
@@ -61,28 +62,17 @@ export default function SetMetadata() {
     if (!account) return
 
     try {
-      const objects = await suiClient.getOwnedObjects({
-        owner: account.address,
-        filter: {
-          StructType: STRUCT_TYPES.AGENT,
-        },
-        options: {
-          showContent: true,
-        },
-      })
-
-      const agentList: Agent[] = objects.data
-        .filter((obj) => obj.data?.content?.dataType === 'moveObject')
-        .map((obj: any) => ({
-          id: obj.data.objectId,
-          agentId: obj.data.content.fields.agent_id,
-          name: obj.data.content.fields.name,
-          description: obj.data.content.fields.description,
-          image: obj.data.content.fields.image,
-          tokenUri: obj.data.content.fields.token_uri,
-        }))
-
-      setAgents(agentList)
+      const agentList = await loadAgentsByOwner(suiClient, account.address)
+      // Map to simpler Agent type used in this component
+      const simplifiedAgents = agentList.map((agent) => ({
+        id: agent.id,
+        agentId: agent.agentId,
+        name: agent.name,
+        description: agent.description,
+        image: agent.image,
+        tokenUri: agent.tokenUri,
+      }))
+      setAgents(simplifiedAgents)
       if (agentList.length > 0 && !selectedAgent) {
         setSelectedAgent(agentList[0].id)
       }
