@@ -754,7 +754,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                             const hashKey = Array.isArray(request.requestHash)
                               ? request.requestHash.join(',')
                               : request.requestHash
-                            const responseStatus = selectedResponse[hashKey] || 2
+                            const responseStatus = selectedResponse[hashKey] ?? 2
 
                             return (
                               <div
