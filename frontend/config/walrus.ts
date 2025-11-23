@@ -6,12 +6,18 @@ import { SuiClient, getFullnodeUrl } from '@mysten/sui/client'
 export const createWalrusClient = async () => {
   // Dynamic import to ensure client-side only
   const { walrus } = await import('@mysten/walrus')
-  
+
   const client = new SuiClient({
     url: getFullnodeUrl('testnet'),
   }).$extend(
     walrus({
       network: 'testnet',
+      uploadRelay: {
+        host: 'https://upload-relay.testnet.walrus.space',
+        sendTip: {
+          max: 100_000, // Maximum tip in MIST
+        },
+      },
       storageNodeClientOptions: {
         timeout: 60_000,
         onError: (error) => {
