@@ -28,6 +28,8 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   const [requestHash, setRequestHash] = useState('')
   const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
   const [validationRequests, setValidationRequests] = useState<any[]>([])
+  const [pendingRequests, setPendingRequests] = useState<any[]>([])
+  const [completedRequests, setCompletedRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [requestData, setRequestData] = useState<{ [key: string]: any }>({})
   const [loadingRequestData, setLoadingRequestData] = useState<{ [key: string]: boolean }>({})
@@ -117,11 +119,16 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
         limit: 50,
       })
 
-      console.log('Total events found:', events.data.length)
-      console.log(
-        'Events data:',
-        events.data.map((e: any) => e.parsedJson)
-      )
+      // Query response events to match with requests
+      const responseEvents = await suiClient.queryEvents({
+        query: {
+          MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::validation_registry::ValidationResponseEvent`,
+        },
+        limit: 50,
+      })
+
+      console.log('Total request events found:', events.data.length)
+      console.log('Total response events found:', responseEvents.data.length)
 
       // Filter events for the selected agent and where the validator is the current user
       const agentRequests = events.data
@@ -144,14 +151,41 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
 
           return eventAgentId === selectedAgentId && eventValidator === currentValidator
         })
-        .map((event: any) => ({
-          requestHash: event.parsedJson.request_hash,
-          agentId: event.parsedJson.agent_id,
-          validator: event.parsedJson.validator,
-          timestamp: event.timestampMs,
-        }))
+        .map((event: any) => {
+          const requestHashArray = event.parsedJson.request_hash
+          const hashKey = Array.isArray(requestHashArray)
+            ? requestHashArray.join(',')
+            : requestHashArray
 
-      console.log('Filtered agent requests:', agentRequests)
+          // Find matching response
+          const response = responseEvents.data.find((respEvent: any) => {
+            const respHashArray = respEvent.parsedJson.request_hash
+            const respHashKey = Array.isArray(respHashArray)
+              ? respHashArray.join(',')
+              : respHashArray
+            return respHashKey === hashKey
+          })
+
+          return {
+            requestHash: requestHashArray,
+            agentId: event.parsedJson.agent_id,
+            validator: event.parsedJson.validator,
+            timestamp: event.timestampMs,
+            transactionDigest: event.id.txDigest,
+            status: response ? response.parsedJson.response : null,
+            responseTimestamp: response ? response.timestampMs : null,
+            responseTransactionDigest: response ? response.id.txDigest : null,
+          }
+        })
+
+      console.log('Filtered agent requests with status:', agentRequests)
+
+      // Separate pending and completed requests
+      const pending = agentRequests.filter((req) => req.status === null)
+      const completed = agentRequests.filter((req) => req.status !== null)
+
+      setPendingRequests(pending)
+      setCompletedRequests(completed)
 
       // Fetch request URI from the contract table for each request
       const requestsWithData = await Promise.all(
@@ -205,6 +239,12 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
 
       console.log('Requests with URIs:', requestsWithData)
       setValidationRequests(requestsWithData)
+
+      // Update pending and completed with URIs
+      const pendingWithData = requestsWithData.filter((req) => req.status === null)
+      const completedWithData = requestsWithData.filter((req) => req.status !== null)
+      setPendingRequests(pendingWithData)
+      setCompletedRequests(completedWithData)
 
       // Load request data from Walrus for each request
       requestsWithData.forEach(async (req) => {
@@ -745,250 +785,417 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                           </p>
                         </div>
                       ) : (
-                        <div className="space-y-4">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            Pending Requests ({validationRequests.length})
-                          </h3>
+                        <div className="space-y-6">
+                          {/* Pending Requests Section */}
+                          {pendingRequests.length > 0 && (
+                            <div className="space-y-4">
+                              <h3 className="text-lg font-semibold text-gray-900">
+                                Pending Requests ({pendingRequests.length})
+                              </h3>
 
-                          {validationRequests.map((request, idx) => {
-                            const hashKey = Array.isArray(request.requestHash)
-                              ? request.requestHash.join(',')
-                              : request.requestHash
-                            const responseStatus = selectedResponse[hashKey] ?? 2
+                              {pendingRequests.map((request, idx) => {
+                                const hashKey = Array.isArray(request.requestHash)
+                                  ? request.requestHash.join(',')
+                                  : request.requestHash
+                                const responseStatus = selectedResponse[hashKey] ?? 2
 
-                            return (
-                              <div
-                                key={idx}
-                                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-                              >
-                                <div className="mb-4 flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="mb-2 text-sm font-semibold text-gray-900">
-                                      Validation Request #{idx + 1}
-                                    </h4>
-                                    <p className="mb-1 text-xs text-gray-600">
-                                      <span className="font-medium">Agent ID:</span>{' '}
-                                      {request.agentId}
-                                    </p>
-                                    <p className="mb-1 text-xs text-gray-600">
-                                      <span className="font-medium">Request Hash:</span>{' '}
-                                      <span className="break-all font-mono">
-                                        {Array.isArray(request.requestHash)
-                                          ? '0x' +
-                                            request.requestHash
-                                              .map((b: number) => b.toString(16).padStart(2, '0'))
-                                              .join('')
-                                              .slice(0, 32) +
-                                            '...'
-                                          : request.requestHash.slice(0, 32) + '...'}
-                                      </span>
-                                    </p>
-                                    {request.requestUri && (
-                                      <p className="mb-1 text-xs text-gray-600">
-                                        <span className="font-medium">Request URI:</span>{' '}
-                                        <a
-                                          href={request.requestUri}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="break-all font-mono text-primary hover:underline"
-                                        >
-                                          {request.requestUri}
-                                        </a>
-                                      </p>
-                                    )}
-                                    <p className="text-xs text-gray-500">
-                                      {new Date(parseInt(request.timestamp)).toLocaleString()}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Request Data */}
-                                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                  <h5 className="mb-2 text-sm font-semibold text-gray-900">
-                                    Request Data
-                                  </h5>
-                                  {loadingRequestData[hashKey] ? (
-                                    <div className="flex items-center gap-2 py-4 text-sm text-gray-600">
-                                      <FontAwesomeIcon
-                                        icon={faSpinner}
-                                        className="h-4 w-4 animate-spin"
-                                      />
-                                      Loading request data from Walrus...
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                                  >
+                                    <div className="mb-4 flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <h4 className="mb-2 text-sm font-semibold text-gray-900">
+                                          Validation Request #{idx + 1}
+                                        </h4>
+                                        <p className="mb-1 text-xs text-gray-600">
+                                          <span className="font-medium">Agent ID:</span>{' '}
+                                          {request.agentId}
+                                        </p>
+                                        <p className="mb-1 text-xs text-gray-600">
+                                          <span className="font-medium">Request Hash:</span>{' '}
+                                          <span className="break-all font-mono">
+                                            {Array.isArray(request.requestHash)
+                                              ? '0x' +
+                                                request.requestHash
+                                                  .map((b: number) =>
+                                                    b.toString(16).padStart(2, '0')
+                                                  )
+                                                  .join('')
+                                                  .slice(0, 32) +
+                                                '...'
+                                              : request.requestHash.slice(0, 32) + '...'}
+                                          </span>
+                                        </p>
+                                        {request.requestUri && (
+                                          <p className="mb-1 text-xs text-gray-600">
+                                            <span className="font-medium">Request URI:</span>{' '}
+                                            <a
+                                              href={request.requestUri}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="break-all font-mono text-primary hover:underline"
+                                            >
+                                              {request.requestUri}
+                                            </a>
+                                          </p>
+                                        )}
+                                        <p className="text-xs text-gray-500">
+                                          {new Date(parseInt(request.timestamp)).toLocaleString()}
+                                        </p>
+                                      </div>
                                     </div>
-                                  ) : requestData[hashKey] ? (
-                                    <div className="space-y-2">
-                                      {requestData[hashKey].error ? (
-                                        <div className="text-sm">
-                                          <p className="text-red-600">
-                                            {requestData[hashKey].error}
-                                          </p>
-                                          {requestData[hashKey].uri && (
-                                            <p className="mt-2 text-xs text-gray-600">
-                                              <span className="font-medium">URI:</span>{' '}
-                                              <a
-                                                href={requestData[hashKey].uri}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-primary hover:underline"
-                                              >
-                                                {requestData[hashKey].uri}
-                                              </a>
-                                            </p>
-                                          )}
+
+                                    {/* Request Data */}
+                                    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                      <h5 className="mb-2 text-sm font-semibold text-gray-900">
+                                        Request Data
+                                      </h5>
+                                      {loadingRequestData[hashKey] ? (
+                                        <div className="flex items-center gap-2 py-4 text-sm text-gray-600">
+                                          <FontAwesomeIcon
+                                            icon={faSpinner}
+                                            className="h-4 w-4 animate-spin"
+                                          />
+                                          Loading request data from Walrus...
                                         </div>
-                                      ) : requestData[hashKey].info ? (
-                                        <div className="text-sm">
-                                          <p className="text-gray-600">
-                                            {requestData[hashKey].info}
-                                          </p>
-                                          {requestData[hashKey].uri && (
-                                            <p className="mt-2 text-xs text-gray-600">
-                                              <span className="font-medium">URI:</span>{' '}
-                                              <a
-                                                href={requestData[hashKey].uri}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-primary hover:underline"
-                                              >
-                                                {requestData[hashKey].uri}
-                                              </a>
-                                            </p>
+                                      ) : requestData[hashKey] ? (
+                                        <div className="space-y-2">
+                                          {requestData[hashKey].error ? (
+                                            <div className="text-sm">
+                                              <p className="text-red-600">
+                                                {requestData[hashKey].error}
+                                              </p>
+                                              {requestData[hashKey].uri && (
+                                                <p className="mt-2 text-xs text-gray-600">
+                                                  <span className="font-medium">URI:</span>{' '}
+                                                  <a
+                                                    href={requestData[hashKey].uri}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline"
+                                                  >
+                                                    {requestData[hashKey].uri}
+                                                  </a>
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : requestData[hashKey].info ? (
+                                            <div className="text-sm">
+                                              <p className="text-gray-600">
+                                                {requestData[hashKey].info}
+                                              </p>
+                                              {requestData[hashKey].uri && (
+                                                <p className="mt-2 text-xs text-gray-600">
+                                                  <span className="font-medium">URI:</span>{' '}
+                                                  <a
+                                                    href={requestData[hashKey].uri}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline"
+                                                  >
+                                                    {requestData[hashKey].uri}
+                                                  </a>
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <>
+                                              {requestData[hashKey].content && (
+                                                <div>
+                                                  <p className="mb-1 text-xs font-medium text-gray-700">
+                                                    Content:
+                                                  </p>
+                                                  <div className="max-h-32 overflow-y-auto rounded border border-gray-300 bg-white p-3">
+                                                    <p className="whitespace-pre-wrap text-xs text-gray-900">
+                                                      {requestData[hashKey].content}
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {requestData[hashKey].fileName && (
+                                                <p className="text-xs text-gray-600">
+                                                  <span className="font-medium">File:</span>{' '}
+                                                  {requestData[hashKey].fileName}
+                                                </p>
+                                              )}
+                                              {requestData[hashKey].timestamp && (
+                                                <p className="text-xs text-gray-600">
+                                                  <span className="font-medium">Submitted:</span>{' '}
+                                                  {new Date(
+                                                    requestData[hashKey].timestamp
+                                                  ).toLocaleString()}
+                                                </p>
+                                              )}
+                                              {requestData[hashKey].requester && (
+                                                <p className="text-xs text-gray-600">
+                                                  <span className="font-medium">Requester:</span>{' '}
+                                                  <span className="font-mono">
+                                                    {requestData[hashKey].requester.slice(0, 6)}...
+                                                    {requestData[hashKey].requester.slice(-4)}
+                                                  </span>
+                                                </p>
+                                              )}
+                                            </>
                                           )}
                                         </div>
                                       ) : (
-                                        <>
-                                          {requestData[hashKey].content && (
-                                            <div>
-                                              <p className="mb-1 text-xs font-medium text-gray-700">
-                                                Content:
-                                              </p>
-                                              <div className="max-h-32 overflow-y-auto rounded border border-gray-300 bg-white p-3">
-                                                <p className="whitespace-pre-wrap text-xs text-gray-900">
-                                                  {requestData[hashKey].content}
-                                                </p>
-                                              </div>
-                                            </div>
-                                          )}
-                                          {requestData[hashKey].fileName && (
-                                            <p className="text-xs text-gray-600">
-                                              <span className="font-medium">File:</span>{' '}
-                                              {requestData[hashKey].fileName}
-                                            </p>
-                                          )}
-                                          {requestData[hashKey].timestamp && (
-                                            <p className="text-xs text-gray-600">
-                                              <span className="font-medium">Submitted:</span>{' '}
-                                              {new Date(
-                                                requestData[hashKey].timestamp
-                                              ).toLocaleString()}
-                                            </p>
-                                          )}
-                                          {requestData[hashKey].requester && (
-                                            <p className="text-xs text-gray-600">
-                                              <span className="font-medium">Requester:</span>{' '}
-                                              <span className="font-mono">
-                                                {requestData[hashKey].requester.slice(0, 6)}...
-                                                {requestData[hashKey].requester.slice(-4)}
-                                              </span>
-                                            </p>
-                                          )}
-                                        </>
+                                        <p className="text-xs text-gray-500">
+                                          {request.requestUri
+                                            ? 'Waiting to load request data...'
+                                            : 'No request URI available'}
+                                        </p>
                                       )}
                                     </div>
-                                  ) : (
-                                    <p className="text-xs text-gray-500">
-                                      {request.requestUri
-                                        ? 'Waiting to load request data...'
-                                        : 'No request URI available'}
-                                    </p>
-                                  )}
-                                </div>
 
-                                {/* Response Status Buttons */}
-                                <div className="mb-4">
-                                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Your Response
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-4">
+                                    {/* Response Status Buttons */}
+                                    <div className="mb-4">
+                                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                                        Your Response
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedResponse({
+                                              ...selectedResponse,
+                                              [hashKey]: 1,
+                                            })
+                                          }
+                                          disabled={loading}
+                                          className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
+                                            responseStatus === 1
+                                              ? 'border-green-500 bg-green-500 text-white shadow-md'
+                                              : 'border-green-500 bg-white text-green-700 hover:bg-green-50'
+                                          }`}
+                                        >
+                                          <span className="text-lg">✓</span> Approve
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedResponse({
+                                              ...selectedResponse,
+                                              [hashKey]: 0,
+                                            })
+                                          }
+                                          disabled={loading}
+                                          className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
+                                            responseStatus === 0
+                                              ? 'border-red-500 bg-red-500 text-white shadow-md'
+                                              : 'border-red-500 bg-white text-red-700 hover:bg-red-50'
+                                          }`}
+                                        >
+                                          <span className="text-lg">✗</span> Reject
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Optional Response Text */}
+                                    <div className="mb-4">
+                                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                                        Response Details{' '}
+                                        <span className="font-normal text-gray-400">
+                                          (optional)
+                                        </span>
+                                      </label>
+                                      <textarea
+                                        value={responseText[hashKey] || ''}
+                                        onChange={(e) =>
+                                          setResponseText({
+                                            ...responseText,
+                                            [hashKey]: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Add optional details about your validation... This will be stored on Walrus."
+                                        rows={3}
+                                        disabled={loading}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                                      />
+                                      <p className="mt-1 text-xs text-gray-500">
+                                        If provided, will be uploaded to Walrus with auto-generated
+                                        hash
+                                      </p>
+                                    </div>
+
+                                    {/* Submit Button */}
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        setSelectedResponse({ ...selectedResponse, [hashKey]: 1 })
+                                        handleValidationResponse(
+                                          request.requestHash,
+                                          responseStatus
+                                        )
                                       }
                                       disabled={loading}
-                                      className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
-                                        responseStatus === 1
-                                          ? 'border-green-500 bg-green-500 text-white shadow-md'
-                                          : 'border-green-500 bg-white text-green-700 hover:bg-green-50'
-                                      }`}
+                                      className="flex w-full items-center justify-center rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                      <span className="text-lg">✓</span> Approve
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setSelectedResponse({ ...selectedResponse, [hashKey]: 0 })
-                                      }
-                                      disabled={loading}
-                                      className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
-                                        responseStatus === 0
-                                          ? 'border-red-500 bg-red-500 text-white shadow-md'
-                                          : 'border-red-500 bg-white text-red-700 hover:bg-red-50'
-                                      }`}
-                                    >
-                                      <span className="text-lg">✗</span> Reject
+                                      {loading ? (
+                                        <>
+                                          <FontAwesomeIcon
+                                            icon={faSpinner}
+                                            className="mr-2 h-4 w-4 animate-spin"
+                                          />
+                                          {uploadingToWalrus ? 'Uploading...' : 'Submitting...'}
+                                        </>
+                                      ) : (
+                                        'Submit Response'
+                                      )}
                                     </button>
                                   </div>
-                                </div>
+                                )
+                              })}
+                            </div>
+                          )}
 
-                                {/* Optional Response Text */}
-                                <div className="mb-4">
-                                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Response Details{' '}
-                                    <span className="font-normal text-gray-400">(optional)</span>
-                                  </label>
-                                  <textarea
-                                    value={responseText[hashKey] || ''}
-                                    onChange={(e) =>
-                                      setResponseText({
-                                        ...responseText,
-                                        [hashKey]: e.target.value,
-                                      })
-                                    }
-                                    placeholder="Add optional details about your validation... This will be stored on Walrus."
-                                    rows={3}
-                                    disabled={loading}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-primary disabled:bg-gray-50"
-                                  />
-                                  <p className="mt-1 text-xs text-gray-500">
-                                    If provided, will be uploaded to Walrus with auto-generated hash
-                                  </p>
-                                </div>
+                          {/* Request History Section */}
+                          {completedRequests.length > 0 && (
+                            <div className="space-y-4">
+                              <h3 className="text-lg font-semibold text-gray-900">
+                                Request History ({completedRequests.length})
+                              </h3>
 
-                                {/* Submit Button */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleValidationResponse(request.requestHash, responseStatus)
-                                  }
-                                  disabled={loading}
-                                  className="flex w-full items-center justify-center rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {loading ? (
-                                    <>
-                                      <FontAwesomeIcon
-                                        icon={faSpinner}
-                                        className="mr-2 h-4 w-4 animate-spin"
-                                      />
-                                      {uploadingToWalrus ? 'Uploading...' : 'Submitting...'}
-                                    </>
-                                  ) : (
-                                    'Submit Response'
-                                  )}
-                                </button>
-                              </div>
-                            )
-                          })}
+                              {completedRequests.map((request, idx) => {
+                                const hashKey = Array.isArray(request.requestHash)
+                                  ? request.requestHash.join(',')
+                                  : request.requestHash
+
+                                const statusBadge = {
+                                  0: {
+                                    label: 'Rejected',
+                                    color: 'bg-red-100 text-red-800 border-red-200',
+                                  },
+                                  1: {
+                                    label: 'Approved',
+                                    color: 'bg-green-100 text-green-800 border-green-200',
+                                  },
+                                  2: {
+                                    label: 'Pending',
+                                    color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                  },
+                                }[request.status] || {
+                                  label: 'Unknown',
+                                  color: 'bg-gray-100 text-gray-800 border-gray-200',
+                                }
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                                  >
+                                    <div className="mb-3 flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="mb-2 flex items-center gap-2">
+                                          <h4 className="text-sm font-semibold text-gray-900">
+                                            Request #{completedRequests.length - idx}
+                                          </h4>
+                                          <span
+                                            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadge.color}`}
+                                          >
+                                            {statusBadge.label}
+                                          </span>
+                                        </div>
+                                        <p className="mb-1 text-xs text-gray-600">
+                                          <span className="font-medium">Agent ID:</span>{' '}
+                                          {request.agentId}
+                                        </p>
+                                        <p className="mb-1 text-xs text-gray-600">
+                                          <span className="font-medium">Request Hash:</span>{' '}
+                                          <span className="break-all font-mono text-xs">
+                                            {Array.isArray(request.requestHash)
+                                              ? '0x' +
+                                                request.requestHash
+                                                  .map((b: number) =>
+                                                    b.toString(16).padStart(2, '0')
+                                                  )
+                                                  .join('')
+                                                  .slice(0, 20) +
+                                                '...'
+                                              : request.requestHash.slice(0, 20) + '...'}
+                                          </span>
+                                        </p>
+                                        <p className="mb-1 text-xs text-gray-600">
+                                          <span className="font-medium">Requested:</span>{' '}
+                                          {new Date(parseInt(request.timestamp)).toLocaleString()}
+                                        </p>
+                                        {request.responseTimestamp && (
+                                          <p className="mb-1 text-xs text-gray-600">
+                                            <span className="font-medium">Responded:</span>{' '}
+                                            {new Date(
+                                              parseInt(request.responseTimestamp)
+                                            ).toLocaleString()}
+                                          </p>
+                                        )}
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                          {request.transactionDigest && (
+                                            <a
+                                              href={`https://suiscan.xyz/testnet/tx/${request.transactionDigest}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-primary hover:underline"
+                                            >
+                                              View Request Tx →
+                                            </a>
+                                          )}
+                                          {request.responseTransactionDigest && (
+                                            <a
+                                              href={`https://suiscan.xyz/testnet/tx/${request.responseTransactionDigest}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-secondary hover:underline"
+                                            >
+                                              View Response Tx →
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Collapsible Request Data */}
+                                    {request.requestUri && (
+                                      <details className="mt-3">
+                                        <summary className="cursor-pointer text-xs font-medium text-gray-700 hover:text-gray-900">
+                                          View Request Details
+                                        </summary>
+                                        <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                          {loadingRequestData[hashKey] ? (
+                                            <div className="flex items-center gap-2 py-2 text-xs text-gray-600">
+                                              <FontAwesomeIcon
+                                                icon={faSpinner}
+                                                className="h-3 w-3 animate-spin"
+                                              />
+                                              Loading...
+                                            </div>
+                                          ) : requestData[hashKey] ? (
+                                            <div className="space-y-1 text-xs">
+                                              {requestData[hashKey].content && (
+                                                <div className="max-h-24 overflow-y-auto rounded border border-gray-300 bg-white p-2">
+                                                  <p className="whitespace-pre-wrap text-xs text-gray-900">
+                                                    {requestData[hashKey].content}
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {requestData[hashKey].fileName && (
+                                                <p className="text-gray-600">
+                                                  <span className="font-medium">File:</span>{' '}
+                                                  {requestData[hashKey].fileName}
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="text-xs text-gray-500">
+                                              No data available
+                                            </p>
+                                          )}
+                                        </div>
+                                      </details>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
