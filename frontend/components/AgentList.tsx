@@ -6,7 +6,7 @@ import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit'
 import { useState, useEffect } from 'react'
 import { STRUCT_TYPES } from '@/config/contracts'
 import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
-import type { Agent } from '@/types'
+import type { Agent, Endpoint } from '@/types'
 
 export default function AgentList() {
   const account = useCurrentAccount()
@@ -42,14 +42,27 @@ export default function AgentList() {
           .filter((obj) => obj.data?.content?.dataType === 'moveObject')
           .map(async (obj: any) => {
             const fields = obj.data.content.fields
+            
+            // Parse endpoints from the Move contract
+            const endpoints: Endpoint[] = fields.endpoints?.map((ep: any) => ({
+              name: ep.name || '',
+              endpoint: ep.endpoint || '',
+              version: ep.version || '',
+            })) || []
+
             const agent: Agent = {
               id: obj.data.objectId,
               agentId: fields.agent_id,
-              tokenUri: fields.token_uri,
+              name: fields.name || '',
+              description: fields.description || '',
+              image: fields.image || '',
+              tokenUri: fields.token_uri || '',
+              endpoints,
               owner: account.address,
             }
 
-            // Try to fetch metadata from Walrus if tokenUri exists
+            // Try to fetch additional metadata from Walrus if tokenUri exists
+            // This will contain other extended fields
             if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
               try {
                 const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
@@ -119,10 +132,10 @@ export default function AgentList() {
           >
             {/* Agent Image */}
             <div className="relative aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 overflow-hidden">
-              {agent.metadata?.image ? (
+              {agent.image ? (
                 <img
-                  src={agent.metadata.image}
-                  alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                  src={agent.image}
+                  alt={agent.name || `Agent ${agent.agentId}`}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   onError={(e) => {
                     // Fallback if image fails to load
@@ -134,7 +147,7 @@ export default function AgentList() {
               ) : (
                 <img
                   src="/assets/fallback-agent.svg"
-                  alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                  alt={agent.name || `Agent ${agent.agentId}`}
                   className="w-full h-full object-contain p-8 group-hover:scale-110 transition-transform duration-300"
                 />
               )}
@@ -150,18 +163,32 @@ export default function AgentList() {
 
             {/* Agent Info */}
             <div className="p-5">
-              <div className="mb-3">
-                <h3 className="text-xl font-bold text-gray-900 mb-1 truncate">
-                  {agent.metadata?.name || `Agent #${agent.agentId}`}
+              {/* Agent Name */}
+              <div className="mb-2">
+                <h3 className="text-xl font-bold text-gray-900 truncate">
+                  {agent.name || `Agent ${agent.agentId}`}
                 </h3>
-                <p className="text-sm text-gray-500 font-mono">
-                  ID: {agent.agentId}
-                </p>
               </div>
 
-              {agent.metadata?.description && (
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[2.5rem]">
-                  {agent.metadata.description}
+              {/* Agent ID */}
+              <p className="text-xs text-gray-500 font-mono mb-3">
+                ID: {agent.agentId}
+              </p>
+
+              {/* Owner */}
+              <div className="mb-3 pb-3 border-b border-gray-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-gray-500">Owner</span>
+                  <span className="font-mono text-gray-700">
+                    {account?.address.slice(0, 6)}...{account?.address.slice(-4)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Description */}
+              {agent.description && (
+                <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                  {agent.description}
                 </p>
               )}
 
@@ -180,31 +207,19 @@ export default function AgentList() {
               </div>
 
               {/* Metadata Stats */}
-              {agent.metadata && (
-                <div className="flex items-center gap-2 mb-3">
-                  {agent.metadata.endpoints && agent.metadata.endpoints.length > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md text-xs font-medium text-blue-700">
-                      <span className="font-semibold">{agent.metadata.endpoints.length}</span>
-                      <span>endpoint{agent.metadata.endpoints.length !== 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                  {agent.metadata.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded-md text-xs font-medium text-purple-700">
-                      <span className="font-semibold">{agent.metadata.supportedTrust.length}</span>
-                      <span>trust</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Owner */}
-              <div className="pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="font-medium">Owner</span>
-                  <span className="font-mono">
-                    {account?.address.slice(0, 6)}...{account?.address.slice(-4)}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2 mb-3">
+                {agent.endpoints && agent.endpoints.length > 0 && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md text-xs font-medium text-blue-700">
+                    <span className="font-semibold">{agent.endpoints.length}</span>
+                    <span>endpoint{agent.endpoints.length !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+                {agent.metadata?.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded-md text-xs font-medium text-purple-700">
+                    <span className="font-semibold">{agent.metadata.supportedTrust.length}</span>
+                    <span>trust</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

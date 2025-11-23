@@ -1,7 +1,11 @@
 export interface Agent {
   id: string
   agentId: string
+  name: string
+  description: string
+  image: string
   tokenUri: string
+  endpoints: Endpoint[]
   owner: string
   metadata?: AgentMetadata
 }

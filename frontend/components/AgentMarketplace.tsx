@@ -5,7 +5,7 @@ import { faRotate, faSearch, faFaceFrown, faIdCard, faUser, faImage } from '@for
 import { useSuiClient } from '@mysten/dapp-kit'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, STRUCT_TYPES } from '@/config/contracts'
-import type { Agent } from '@/types'
+import type { Agent, Endpoint } from '@/types'
 import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
 
 interface AgentMarketplaceProps {
@@ -33,45 +33,72 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
         limit: 50,
       })
 
-      const agentIds = new Set<string>()
-      const agentDataMap = new Map<string, any>()
+      const agentObjectIds = new Set<string>()
+      const ownerMap = new Map<string, string>()
       
       for (const event of data) {
         const parsedJson = event.parsedJson as any
-        if (parsedJson?.agent_id) {
-          agentIds.add(parsedJson.agent_id)
-          agentDataMap.set(parsedJson.agent_id, {
-            objectId: parsedJson.agent_object_id,
-            owner: parsedJson.owner,
-          })
+        if (parsedJson?.agent_object_id) {
+          agentObjectIds.add(parsedJson.agent_object_id)
+          ownerMap.set(parsedJson.agent_object_id, parsedJson.owner)
         }
       }
 
-      // For now, we'll fetch agents from events and try to load metadata
-      const agentList: Agent[] = await Promise.all(
-        Array.from(agentIds).map(async (id) => {
-          const agentData = agentDataMap.get(id)
-          const agent: Agent = {
-            id: agentData?.objectId || `agent_${id}`,
-            agentId: id,
-            tokenUri: '',
-            owner: agentData?.owner || '',
-          }
-
-          // Try to fetch metadata from Walrus if tokenUri exists
+      // Fetch full agent objects from the blockchain
+      const agentResults = await Promise.all(
+        Array.from(agentObjectIds).map(async (objectId): Promise<Agent | null> => {
           try {
-            if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
-              const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
-              agent.metadata = metadata
+            const agentObject = await suiClient.getObject({
+              id: objectId,
+              options: {
+                showContent: true,
+                showType: true,
+              },
+            })
+
+            if (agentObject.data?.content?.dataType === 'moveObject') {
+              const fields = (agentObject.data.content as any).fields
+              
+              // Parse endpoints from the Move contract
+              const endpoints: Endpoint[] = fields.endpoints?.map((ep: any) => ({
+                name: ep.name || '',
+                endpoint: ep.endpoint || '',
+                version: ep.version || '',
+              })) || []
+
+              const agent: Agent = {
+                id: objectId,
+                agentId: fields.agent_id,
+                name: fields.name || '',
+                description: fields.description || '',
+                image: fields.image || '',
+                tokenUri: fields.token_uri || '',
+                endpoints,
+                owner: ownerMap.get(objectId) || '',
+              }
+
+              // Try to fetch additional metadata from Walrus if tokenUri exists
+              // This will contain registrations, supportedTrust, and other extended fields
+              if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
+                try {
+                  const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
+                  agent.metadata = metadata
+                } catch (error) {
+                  console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
+                }
+              }
+
+              return agent
             }
           } catch (error) {
-            console.log(`Could not load metadata for agent ${id}:`, error)
+            console.error(`Error fetching agent ${objectId}:`, error)
           }
-
-          return agent
+          return null
         })
       )
 
+      // Filter out null values and set agents
+      const agentList = agentResults.filter((agent): agent is Agent => agent !== null)
       setAgents(agentList)
     } catch (error) {
       console.error('Error loading agents:', error)
@@ -84,8 +111,8 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
     (agent) =>
       agent.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.metadata?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.metadata?.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      agent.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (loading) {
@@ -177,49 +204,51 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
 
               {/* Agent Info */}
               <div className="p-5">
-                {/* Agent Name and ID */}
-                <div className="mb-3">
-                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors mb-1 truncate">
-                    {agent.metadata?.name || `Agent #${agent.agentId}`}
+                {/* Agent Name */}
+                <div className="mb-2">
+                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors truncate">
+                    {agent.name || `Agent ${agent.agentId}`}
                   </h3>
-                  <p className="text-sm text-gray-500 font-mono flex items-center gap-1">
-                    <FontAwesomeIcon icon={faIdCard} className="w-3 h-3" />
-                    ID: {agent.agentId}
-                  </p>
                 </div>
 
+                {/* Agent ID */}
+                <p className="text-xs text-gray-500 font-mono flex items-center gap-1 mb-3">
+                  <FontAwesomeIcon icon={faIdCard} className="w-3 h-3" />
+                  ID: {agent.agentId}
+                </p>
+
+                {/* Owner */}
+                {agent.owner && (
+                  <div className="mb-3 pb-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-gray-500">Owner</span>
+                      <span className="font-mono text-gray-700">
+                        {agent.owner.slice(0, 6)}...{agent.owner.slice(-4)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
-                {agent.metadata?.description && (
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[2.5rem]">
-                    {agent.metadata.description}
+                {agent.description && (
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                    {agent.description}
                   </p>
                 )}
 
                 {/* Endpoints Count */}
-                {agent.metadata?.endpoints && agent.metadata.endpoints.length > 0 && (
-                  <div className="flex items-center gap-2 mb-4">
+                {agent.endpoints && agent.endpoints.length > 0 && (
+                  <div className="flex items-center gap-2 mb-3">
                     <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md text-xs font-medium text-blue-700">
-                      <span className="font-semibold">{agent.metadata.endpoints.length}</span>
-                      <span>endpoint{agent.metadata.endpoints.length !== 1 ? 's' : ''}</span>
+                      <span className="font-semibold">{agent.endpoints.length}</span>
+                      <span>endpoint{agent.endpoints.length !== 1 ? 's' : ''}</span>
                     </div>
-                    {agent.metadata.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
+                    {agent.metadata?.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
                       <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded-md text-xs font-medium text-purple-700">
                         <span className="font-semibold">{agent.metadata.supportedTrust.length}</span>
                         <span>trust type{agent.metadata.supportedTrust.length !== 1 ? 's' : ''}</span>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* Owner */}
-                {agent.owner && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span className="font-medium">Owner</span>
-                      <span className="font-mono">
-                        {agent.owner.slice(0, 6)}...{agent.owner.slice(-4)}
-                      </span>
-                    </div>
                   </div>
                 )}
 

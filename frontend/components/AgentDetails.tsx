@@ -97,11 +97,11 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
         <div className="relative">
           {/* Banner/Image */}
           <div className="relative h-72 bg-gradient-to-br from-blue-500 to-indigo-600 overflow-hidden">
-            {agent.metadata?.image ? (
+            {agent.image ? (
               <>
                 <img
-                  src={agent.metadata.image}
-                  alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                  src={agent.image}
+                  alt={agent.name || `Agent ${agent.agentId}`}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     // Fallback if image fails to load
@@ -115,7 +115,7 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             ) : (
               <img
                 src="/assets/fallback-agent.svg"
-                alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                alt={agent.name || `Agent ${agent.agentId}`}
                 className="w-full h-full object-contain p-16"
               />
             )}
@@ -141,7 +141,7 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                  {agent.metadata?.name || `Agent #${agent.agentId}`}
+                  {agent.name || `Agent ${agent.agentId}`}
                 </h1>
                 <div className="flex items-center gap-3 text-gray-600">
                   <span className="font-mono text-sm bg-gray-100 px-3 py-1 rounded-lg">
@@ -155,15 +155,6 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
                 </div>
               </div>
             </div>
-
-            {/* Description */}
-            {agent.metadata?.description && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <p className="text-gray-700 leading-relaxed">
-                  {agent.metadata.description}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -172,27 +163,78 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Left Column - Main Info */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Agent Description */}
+              {agent.description && (
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Agent Description</h2>
+                  <p className="text-gray-700 leading-relaxed">
+                    {agent.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Image URI */}
+              {agent.image && (
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Image URI</h2>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <a
+                      href={agent.image}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-indigo-700 text-sm break-all"
+                    >
+                      {agent.image}
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Token URI */}
+              {agent.tokenUri && (
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Token URI</h2>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <a
+                      href={agent.tokenUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-indigo-700 text-sm break-all"
+                    >
+                      {agent.tokenUri}
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {/* Endpoints */}
-              {agent.metadata?.endpoints && agent.metadata.endpoints.length > 0 && (
+              {agent.endpoints && agent.endpoints.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                     <FontAwesomeIcon icon={faGlobe} className="w-5 h-5 mr-3 text-blue-600" />
                     Endpoints
                   </h2>
                   <div className="space-y-3">
-                    {agent.metadata.endpoints.map((endpoint, idx) => (
+                    {agent.endpoints.map((endpoint, idx) => (
                       <div key={idx} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                        <div className="flex items-start justify-between mb-2">
-                          <span className="font-semibold text-gray-900">{endpoint.name}</span>
+                        <div className="grid grid-cols-1 gap-2">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</label>
+                            <p className="text-sm font-semibold text-gray-900 mt-1">{endpoint.name}</p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint</label>
+                            <p className="text-sm text-gray-700 font-mono break-all mt-1">
+                              {endpoint.endpoint}
+                            </p>
+                          </div>
                           {endpoint.version && (
-                            <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium">
-                              v{endpoint.version}
-                            </span>
+                            <div>
+                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Version</label>
+                              <p className="text-sm text-gray-900 mt-1">v{endpoint.version}</p>
+                            </div>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 font-mono break-all">
-                          {endpoint.endpoint}
-                        </p>
                       </div>
                     ))}
                   </div>
@@ -245,27 +287,14 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
                 </div>
               )}
 
-              {/* Technical Details */}
+              {/* Additional Technical Details */}
               <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Technical Details</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Additional Details</h2>
                 <div className="space-y-3">
                   <div className="p-3 bg-gray-50 rounded-lg">
                     <label className="text-sm font-medium text-gray-500">Object ID</label>
                     <p className="text-gray-900 font-mono text-sm break-all mt-1">{agent.id}</p>
                   </div>
-                  {agent.tokenUri && (
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <label className="text-sm font-medium text-gray-500">Token URI</label>
-                      <a
-                        href={agent.tokenUri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:text-indigo-700 text-sm break-all mt-1 block"
-                      >
-                        {agent.tokenUri}
-                      </a>
-                    </div>
-                  )}
                   {agent.metadata?.type && (
                     <div className="p-3 bg-gray-50 rounded-lg">
                       <label className="text-sm font-medium text-gray-500">Type</label>
