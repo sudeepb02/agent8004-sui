@@ -1,12 +1,29 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faDatabase, faSpinner, faRobot, faLink, faKey, faInfoCircle, faTag, faCloudUploadAlt, faChevronDown, faCheckCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons'
+import {
+  faDatabase,
+  faSpinner,
+  faRobot,
+  faLink,
+  faKey,
+  faInfoCircle,
+  faTag,
+  faCloudUploadAlt,
+  faChevronDown,
+  faCheckCircle,
+  faTimesCircle,
+} from '@fortawesome/free-solid-svg-icons'
 import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, MODULES, STRUCT_TYPES } from '@/config/contracts'
-import { storeMetadataWithFlow, type AgentMetadata, type Endpoint, readMetadataFromWalrus } from '@/utils/walrus'
+import {
+  storeMetadataWithFlow,
+  type AgentMetadata,
+  type Endpoint,
+  readMetadataFromWalrus,
+} from '@/utils/walrus'
 
 interface Agent {
   id: string
@@ -42,7 +59,7 @@ export default function SetMetadata() {
 
   const loadAgents = async () => {
     if (!account) return
-    
+
     try {
       const objects = await suiClient.getOwnedObjects({
         owner: account.address,
@@ -88,10 +105,7 @@ export default function SetMetadata() {
       if (description) {
         tx.moveCall({
           target: `${MODULES.IDENTITY_REGISTRY}::set_description`,
-          arguments: [
-            tx.object(selectedAgent),
-            tx.pure.string(description),
-          ],
+          arguments: [tx.object(selectedAgent), tx.pure.string(description)],
         })
       }
 
@@ -99,10 +113,7 @@ export default function SetMetadata() {
       if (image) {
         tx.moveCall({
           target: `${MODULES.IDENTITY_REGISTRY}::set_image`,
-          arguments: [
-            tx.object(selectedAgent),
-            tx.pure.string(image),
-          ],
+          arguments: [tx.object(selectedAgent), tx.pure.string(image)],
         })
       }
 
@@ -115,7 +126,9 @@ export default function SetMetadata() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Agent details updated. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Agent details updated. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setDescription('')
             setImage('')
             setLoading(false)
@@ -163,10 +176,12 @@ export default function SetMetadata() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Endpoint added. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Endpoint added. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setEndpointName('')
             setEndpointUrl('')
-            setEndpointVersion('1.0.0')
+            setEndpointVersion('')
             setLoading(false)
           },
           onError: (error) => {
@@ -194,10 +209,7 @@ export default function SetMetadata() {
 
       tx.moveCall({
         target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
-        arguments: [
-          tx.object(selectedAgent),
-          tx.pure.string(tokenUri),
-        ],
+        arguments: [tx.object(selectedAgent), tx.pure.string(tokenUri)],
       })
 
       signAndExecute(
@@ -209,7 +221,9 @@ export default function SetMetadata() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Token URI updated. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Token URI updated. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setTokenUri('')
             setLoading(false)
           },
@@ -272,10 +286,7 @@ export default function SetMetadata() {
 
       tx.moveCall({
         target: `${MODULES.IDENTITY_REGISTRY}::set_token_uri`,
-        arguments: [
-          tx.object(selectedAgent),
-          tx.pure.string(walrusUri),
-        ],
+        arguments: [tx.object(selectedAgent), tx.pure.string(walrusUri)],
       })
 
       signAndExecute(
@@ -287,7 +298,9 @@ export default function SetMetadata() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Metadata stored on Walrus and token URI updated. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Metadata stored on Walrus and token URI updated. Transaction: ${result.digest}`
+            )
             setMetadataJson('')
             setLoading(false)
             loadAgents() // Reload agents to get updated data
@@ -309,31 +322,28 @@ export default function SetMetadata() {
   }
 
   const generateTemplateMetadata = () => {
-    const currentAgent = agents.find(a => a.id === selectedAgent)
+    const currentAgent = agents.find((a) => a.id === selectedAgent)
     if (!currentAgent) return
 
     const template: AgentMetadata = {
-      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-      name: currentAgent.name || "myAgentName",
-      description: currentAgent.description || "A natural language description of the Agent",
-      image: currentAgent.image || "https://example.com/agentimage.png",
+      type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+      name: currentAgent.name || 'myAgentName',
+      description: currentAgent.description || 'A natural language description of the Agent',
+      image: currentAgent.image || 'https://example.com/agentimage.png',
       endpoints: [
         {
-          name: "A2A",
-          endpoint: "https://agent.example/.well-known/agent-card.json",
-          version: "0.3.0"
-        }
+          name: 'A2A',
+          endpoint: 'https://agent.example/.well-known/agent-card.json',
+          version: '0.3.0',
+        },
       ],
       registrations: [
         {
           agentId: parseInt(currentAgent.agentId) || 0,
-          agentRegistry: `sui:testnet:${CONTRACT_CONFIG.PACKAGE_ID}`
-        }
+          agentRegistry: `sui:testnet:${CONTRACT_CONFIG.PACKAGE_ID}`,
+        },
       ],
-      supportedTrust: [
-        "reputation",
-        "crypto-economic"
-      ]
+      supportedTrust: ['reputation', 'crypto-economic'],
     }
 
     setMetadataJson(JSON.stringify(template, null, 2))
@@ -341,21 +351,23 @@ export default function SetMetadata() {
 
   if (agents.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600 mb-4">You need to register an agent first before setting metadata.</p>
+      <div className="py-12 text-center">
+        <p className="mb-4 text-gray-600">
+          You need to register an agent first before setting metadata.
+        </p>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-green-600 rounded-lg p-8 text-white">
-        <div className="flex items-center mb-4">
-          <div className="bg-green-700 p-3 rounded-lg mr-4">
-            <FontAwesomeIcon icon={faDatabase} className="w-8 h-8" />
+      <div className="rounded-lg bg-green-600 p-8 text-white">
+        <div className="mb-4 flex items-center">
+          <div className="mr-4 rounded-lg bg-green-700 p-3">
+            <FontAwesomeIcon icon={faDatabase} className="h-8 w-8" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold mb-1">Set Agent Metadata</h2>
+            <h2 className="mb-1 text-3xl font-bold">Set Agent Metadata</h2>
             <p className="text-green-100">
               Update token URI or set custom metadata for your agents
             </p>
@@ -363,20 +375,20 @@ export default function SetMetadata() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="rounded-lg bg-white p-8 shadow-lg">
         <div className="mb-6">
-          <label htmlFor="agent" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="agent" className="mb-2 block text-sm font-medium text-gray-700">
             Select Agent
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               <FontAwesomeIcon icon={faRobot} className="h-5 w-5 text-gray-400" />
             </div>
             <select
               id="agent"
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent appearance-none bg-white"
+              className="w-full appearance-none rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 focus:border-transparent focus:ring-2 focus:ring-primary"
             >
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
@@ -384,23 +396,23 @@ export default function SetMetadata() {
                 </option>
               ))}
             </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
               <FontAwesomeIcon icon={faChevronDown} className="h-5 w-5 text-gray-400" />
             </div>
           </div>
         </div>
 
         {/* Set Token URI */}
-        <div className="border border-gray-200 rounded-lg p-6 mb-6 bg-blue-50">
-          <div className="flex items-center mb-4">
-            <div className="bg-blue-100 p-2 rounded-lg mr-3">
-              <FontAwesomeIcon icon={faLink} className="w-5 h-5 text-blue-600" />
+        <div className="mb-6 rounded-lg border border-gray-200 bg-blue-50 p-6">
+          <div className="mb-4 flex items-center">
+            <div className="mr-3 rounded-lg bg-blue-100 p-2">
+              <FontAwesomeIcon icon={faLink} className="h-5 w-5 text-blue-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900">Update Token URI</h3>
           </div>
           <div className="space-y-4">
             <div>
-              <label htmlFor="tokenUri" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="tokenUri" className="mb-2 block text-sm font-medium text-gray-700">
                 New Token URI
               </label>
               <input
@@ -409,18 +421,18 @@ export default function SetMetadata() {
                 value={tokenUri}
                 onChange={(e) => setTokenUri(e.target.value)}
                 placeholder="ipfs://QmYourAgentMetadata"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
             <button
               type="button"
               onClick={handleSetTokenUri}
               disabled={loading || !tokenUri}
-              className="w-full bg-secondary text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              className="flex w-full items-center justify-center rounded-lg bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                   Updating...
                 </>
               ) : (
@@ -431,16 +443,18 @@ export default function SetMetadata() {
         </div>
 
         {/* Update Agent Details */}
-        <div className="border border-gray-200 rounded-lg p-6 mb-6 bg-purple-50">
-          <div className="flex items-center mb-4">
-            <div className="bg-purple-100 p-2 rounded-lg mr-3">
-              <FontAwesomeIcon icon={faRobot} className="w-5 h-5 text-purple-600" />
+        <div className="mb-6 rounded-lg border border-gray-200 bg-purple-50 p-6">
+          <div className="mb-4 flex items-center">
+            <div className="mr-3 rounded-lg bg-purple-100 p-2">
+              <FontAwesomeIcon icon={faRobot} className="h-5 w-5 text-purple-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">Update Agent Details (On-Chain Only)</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Update Agent Details (On-Chain Only)
+            </h3>
           </div>
           <form onSubmit={handleUpdateDetails} className="space-y-4">
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="description" className="mb-2 block text-sm font-medium text-gray-700">
                 Description
               </label>
               <textarea
@@ -449,12 +463,12 @@ export default function SetMetadata() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe your agent's capabilities"
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <div>
-              <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="image" className="mb-2 block text-sm font-medium text-gray-700">
                 Image URL
               </label>
               <input
@@ -463,18 +477,18 @@ export default function SetMetadata() {
                 value={image}
                 onChange={(e) => setImage(e.target.value)}
                 placeholder="https://example.com/agent-image.png"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || (!description && !image)}
-              className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              className="flex w-full items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                   Updating...
                 </>
               ) : (
@@ -485,26 +499,28 @@ export default function SetMetadata() {
         </div>
 
         {/* Store 8004 Metadata on Walrus */}
-        <div className="border border-blue-200 rounded-lg p-6 mb-6 bg-blue-50">
-          <div className="flex items-center mb-4">
-            <div className="bg-blue-100 p-2 rounded-lg mr-3">
-              <FontAwesomeIcon icon={faCloudUploadAlt} className="w-5 h-5 text-blue-600" />
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-6">
+          <div className="mb-4 flex items-center">
+            <div className="mr-3 rounded-lg bg-blue-100 p-2">
+              <FontAwesomeIcon icon={faCloudUploadAlt} className="h-5 w-5 text-blue-600" />
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900">Store 8004 Metadata on Walrus</h3>
-              <p className="text-sm text-blue-700 mt-1">Store structured JSON metadata on Walrus and update token URI</p>
+              <p className="mt-1 text-sm text-blue-700">
+                Store structured JSON metadata on Walrus and update token URI
+              </p>
             </div>
           </div>
           <div className="space-y-4">
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <label htmlFor="metadata-json" className="block text-sm font-medium text-gray-700">
                   Agent Metadata (8004 JSON)
                 </label>
                 <button
                   type="button"
                   onClick={generateTemplateMetadata}
-                  className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                  className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition-colors hover:bg-blue-700"
                 >
                   Generate Template
                 </button>
@@ -513,18 +529,20 @@ export default function SetMetadata() {
                 id="metadata-json"
                 value={metadataJson}
                 onChange={(e) => setMetadataJson(e.target.value)}
-                placeholder={'{\n  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",\n  "name": "myAgentName",\n  "description": "Agent description",\n  "image": "https://example.com/image.png",\n  "endpoints": [...],\n  "registrations": [...],\n  "supportedTrust": [...]\n}'}
+                placeholder={
+                  '{\n  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",\n  "name": "myAgentName",\n  "description": "Agent description",\n  "image": "https://example.com/image.png",\n  "endpoints": [...],\n  "registrations": [...],\n  "supportedTrust": [...]\n}'
+                }
                 rows={12}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none font-mono text-sm"
+                className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
-            <div className="bg-blue-100 border border-blue-300 rounded-lg p-3 text-sm text-blue-800">
+            <div className="rounded-lg border border-blue-300 bg-blue-100 p-3 text-sm text-blue-800">
               <div className="flex items-start">
                 <FontAwesomeIcon icon={faInfoCircle} className="mr-2 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold mb-1">8004 Compliant Metadata</p>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
+                  <p className="mb-1 font-semibold">8004 Compliant Metadata</p>
+                  <ul className="list-inside list-disc space-y-1 text-xs">
                     <li>Supports endpoints (A2A, MCP, OASF, ENS, DID, etc.)</li>
                     <li>Includes registrations and trust mechanisms</li>
                     <li>Stored permanently on Walrus (10 epochs on testnet)</li>
@@ -538,21 +556,21 @@ export default function SetMetadata() {
               type="button"
               onClick={handleStoreMetadataOnWalrus}
               disabled={loading || !metadataJson}
-              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading && uploadingToWalrus ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                   Storing on Walrus...
                 </>
               ) : loading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                   Updating...
                 </>
               ) : (
                 <>
-                  <FontAwesomeIcon icon={faCloudUploadAlt} className="h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-2 h-5 w-5" />
                   Store Metadata on Walrus
                 </>
               )}
@@ -561,16 +579,19 @@ export default function SetMetadata() {
         </div>
 
         {/* Add Endpoint */}
-        <div className="border border-gray-200 rounded-lg p-6 bg-green-50">
-          <div className="flex items-center mb-4">
-            <div className="bg-green-100 p-2 rounded-lg mr-3">
-              <FontAwesomeIcon icon={faTag} className="w-5 h-5 text-green-600" />
+        <div className="rounded-lg border border-gray-200 bg-green-50 p-6">
+          <div className="mb-4 flex items-center">
+            <div className="mr-3 rounded-lg bg-green-100 p-2">
+              <FontAwesomeIcon icon={faTag} className="h-5 w-5 text-green-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900">Add Endpoint</h3>
           </div>
           <form onSubmit={handleAddEndpoint} className="space-y-4">
             <div>
-              <label htmlFor="endpointName" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="endpointName"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Endpoint Name
               </label>
               <input
@@ -579,12 +600,12 @@ export default function SetMetadata() {
                 value={endpointName}
                 onChange={(e) => setEndpointName(e.target.value)}
                 placeholder="API"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <div>
-              <label htmlFor="endpointUrl" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="endpointUrl" className="mb-2 block text-sm font-medium text-gray-700">
                 Endpoint URL
               </label>
               <input
@@ -593,12 +614,15 @@ export default function SetMetadata() {
                 value={endpointUrl}
                 onChange={(e) => setEndpointUrl(e.target.value)}
                 placeholder="https://api.example.com/agent"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <div>
-              <label htmlFor="endpointVersion" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="endpointVersion"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Version
               </label>
               <input
@@ -607,18 +631,18 @@ export default function SetMetadata() {
                 value={endpointVersion}
                 onChange={(e) => setEndpointVersion(e.target.value)}
                 placeholder="1.0.0"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || !endpointName || !endpointUrl}
-              className="w-full bg-secondary text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              className="flex w-full items-center justify-center rounded-lg bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                   Adding...
                 </>
               ) : (
@@ -630,46 +654,64 @@ export default function SetMetadata() {
       </div>
 
       {result && (
-        <div className={`p-4 rounded-lg animate-in fade-in duration-300 ${result.includes('Error') ? 'bg-red-50 text-red-800 border-2 border-red-200' : 'bg-green-50 text-green-800 border-2 border-green-200'}`}>
+        <div
+          className={`animate-in fade-in rounded-lg border-2 p-4 duration-300 ${result.includes('Error') ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}
+        >
           <div className="flex items-start">
             {result.includes('Error') ? (
-              <FontAwesomeIcon icon={faTimesCircle} className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <FontAwesomeIcon icon={faTimesCircle} className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0" />
             ) : (
-              <FontAwesomeIcon icon={faCheckCircle} className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <FontAwesomeIcon icon={faCheckCircle} className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0" />
             )}
-            <p className="text-sm break-all flex-1">{result}</p>
+            <div className="flex-1 text-sm">
+              {result.includes('https://') ? (
+                <>
+                  {result.split('https://')[0]}
+                  <a
+                    href={`https://${result.split('https://')[1]}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold underline hover:text-green-900"
+                  >
+                    View on Suiscan →
+                  </a>
+                </>
+              ) : (
+                <p className="break-all">{result}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
-          <FontAwesomeIcon icon={faInfoCircle} className="w-5 h-5 mr-2" />
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
+        <h3 className="mb-3 flex items-center font-semibold text-blue-900">
+          <FontAwesomeIcon icon={faInfoCircle} className="mr-2 h-5 w-5" />
           Agent Management Tips
         </h3>
-        <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
+        <div className="grid gap-4 text-sm text-blue-800 md:grid-cols-2">
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Update on-chain details or use Walrus storage</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Walrus stores metadata permanently & decentralized</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Token URI can be manually set or auto-updated via Walrus</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Add endpoints for agent API access</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Only the agent owner can modify details</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Walrus storage: 3 epochs on testnet</span>
           </div>
         </div>

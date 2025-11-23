@@ -172,7 +172,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
             validator: event.parsedJson.validator,
             timestamp: event.timestampMs,
             transactionDigest: event.id.txDigest,
-            status: response ? response.parsedJson.response : null,
+            status: response ? (response.parsedJson as any).response : null,
             responseTimestamp: response ? response.timestampMs : null,
             responseTransactionDigest: response ? response.id.txDigest : null,
           }
@@ -399,7 +399,9 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Validation request sent. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Validation request sent. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setRequestText('')
             setRequestFile(null)
             setRequestUri('')
@@ -497,7 +499,9 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Validation response submitted. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Validation response submitted. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setLoading(false)
             // Reload requests to show updated status
             setTimeout(() => {
@@ -1061,7 +1065,10 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                                   ? request.requestHash.join(',')
                                   : request.requestHash
 
-                                const statusBadge = {
+                                const statusBadge: Record<
+                                  number,
+                                  { label: string; color: string }
+                                > = {
                                   0: {
                                     label: 'Rejected',
                                     color: 'bg-red-100 text-red-800 border-red-200',
@@ -1074,7 +1081,9 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                                     label: 'Pending',
                                     color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
                                   },
-                                }[request.status] || {
+                                }
+
+                                const badge = statusBadge[request.status] || {
                                   label: 'Unknown',
                                   color: 'bg-gray-100 text-gray-800 border-gray-200',
                                 }
@@ -1091,9 +1100,9 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                                             Request #{completedRequests.length - idx}
                                           </h4>
                                           <span
-                                            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadge.color}`}
+                                            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badge.color}`}
                                           >
-                                            {statusBadge.label}
+                                            {badge.label}
                                           </span>
                                         </div>
                                         <p className="mb-1 text-xs text-gray-600">
@@ -1207,7 +1216,21 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                 <div
                   className={`mt-6 rounded-lg p-4 ${result.includes('Error') ? 'border border-red-200 bg-red-50 text-red-800' : 'border border-green-200 bg-green-50 text-green-800'}`}
                 >
-                  <p className="break-all text-sm">{result}</p>
+                  {result.includes('https://') ? (
+                    <p className="text-sm">
+                      {result.split('https://')[0]}
+                      <a
+                        href={`https://${result.split('https://')[1]}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold underline hover:text-green-900"
+                      >
+                        View on Suiscan →
+                      </a>
+                    </p>
+                  ) : (
+                    <p className="break-all text-sm">{result}</p>
+                  )}
                 </div>
               )}
             </div>

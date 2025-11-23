@@ -1,7 +1,15 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faRocket, faSpinner, faLink, faCloudUploadAlt, faInfoCircle, faCheckCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons'
+import {
+  faRocket,
+  faSpinner,
+  faLink,
+  faCloudUploadAlt,
+  faInfoCircle,
+  faCheckCircle,
+  faTimesCircle,
+} from '@fortawesome/free-solid-svg-icons'
 import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { useState, useEffect } from 'react'
@@ -12,7 +20,9 @@ export default function RegisterAgent() {
   const [metadataJson, setMetadataJson] = useState('')
   const [useSimpleMode, setUseSimpleMode] = useState(true)
   const [name, setName] = useState('MyAIAgent')
-  const [description, setDescription] = useState('An AI agent that helps with task automation and decision making')
+  const [description, setDescription] = useState(
+    'An AI agent that helps with task automation and decision making'
+  )
   const [image, setImage] = useState('https://example.com/agent-avatar.png')
   const [loading, setLoading] = useState(false)
   const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
@@ -30,32 +40,29 @@ export default function RegisterAgent() {
 
   const generateTemplateMetadata = () => {
     const template: AgentMetadata = {
-      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-      name: name || "MyAIAgent",
-      description: description || "An AI agent that helps with task automation and decision making",
-      image: image || "https://example.com/agent-avatar.png",
+      type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+      name: name || 'MyAIAgent',
+      description: description || 'An AI agent that helps with task automation and decision making',
+      image: image || 'https://example.com/agent-avatar.png',
       endpoints: [
         {
-          name: "A2A",
-          endpoint: "https://agent.example/.well-known/agent-card.json",
-          version: "0.3.0"
+          name: 'A2A',
+          endpoint: 'https://agent.example/.well-known/agent-card.json',
+          version: '0.3.0',
         },
         {
-          name: "MCP",
-          endpoint: "https://mcp.agent.example/",
-          version: "2025-06-18"
-        }
+          name: 'MCP',
+          endpoint: 'https://mcp.agent.example/',
+          version: '2025-06-18',
+        },
       ],
       registrations: [
         {
           agentId: 0,
-          agentRegistry: `sui:testnet:${CONTRACT_CONFIG.PACKAGE_ID}`
-        }
+          agentRegistry: `sui:testnet:${CONTRACT_CONFIG.PACKAGE_ID}`,
+        },
       ],
-      supportedTrust: [
-        "reputation",
-        "crypto-economic"
-      ]
+      supportedTrust: ['reputation', 'crypto-economic'],
     }
 
     setMetadataJson(JSON.stringify(template, null, 2))
@@ -128,11 +135,11 @@ export default function RegisterAgent() {
 
       // Use the Walrus URI as the token URI
       const finalTokenUri = walrusUri
-      
+
       // Extract basic info from metadata for on-chain storage
       const onChainName = metadata.name
       const onChainDescription = metadata.description
-      const onChainImage = metadata.image || ""
+      const onChainImage = metadata.image || ''
 
       const tx = new Transaction()
 
@@ -150,7 +157,7 @@ export default function RegisterAgent() {
 
       // Transfer the agent object to the sender
       tx.transferObjects([agent], tx.pure.address(currentAccount.address))
-    
+
       signAndExecute(
         {
           transaction: tx as any,
@@ -160,7 +167,9 @@ export default function RegisterAgent() {
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Agent registered with 8004 metadata on Walrus. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Agent registered with 8004 metadata on Walrus. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             // Clear form
             setName('MyAIAgent')
             setDescription('An AI agent that helps with task automation and decision making')
@@ -186,28 +195,26 @@ export default function RegisterAgent() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-600 rounded-lg p-8 text-white">
-        <div className="flex items-center mb-4">
-          <div className="bg-blue-700 p-3 rounded-lg mr-4">
-            <FontAwesomeIcon icon={faRocket} className="w-8 h-8" />
+      <div className="rounded-lg bg-blue-600 p-8 text-white">
+        <div className="mb-4 flex items-center">
+          <div className="mr-4 rounded-lg bg-blue-700 p-3">
+            <FontAwesomeIcon icon={faRocket} className="h-8 w-8" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold mb-1">Register New Agent</h2>
-            <p className="text-blue-100">
-              Create a unique agent identity on the Sui blockchain
-            </p>
+            <h2 className="mb-1 text-3xl font-bold">Register New Agent</h2>
+            <p className="text-blue-100">Create a unique agent identity on the Sui blockchain</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="rounded-lg bg-white p-8 shadow-lg">
         {/* Mode Toggle */}
-        <div className="mb-6 flex items-center justify-between bg-gray-50 rounded-lg p-4">
+        <div className="mb-6 flex items-center justify-between rounded-lg bg-gray-50 p-4">
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">Metadata Input Mode</h3>
+            <h3 className="mb-1 text-sm font-semibold text-gray-900">Metadata Input Mode</h3>
             <p className="text-xs text-gray-600">
-              {useSimpleMode 
-                ? 'Simple mode: Fill basic fields (JSON preview below)' 
+              {useSimpleMode
+                ? 'Simple mode: Fill basic fields (JSON preview below)'
                 : 'Advanced mode: Edit full 8004 compliant JSON metadata'}
             </p>
           </div>
@@ -219,7 +226,7 @@ export default function RegisterAgent() {
               }
               setUseSimpleMode(!useSimpleMode)
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
           >
             {useSimpleMode ? 'Switch to Advanced' : 'Switch to Simple'}
           </button>
@@ -230,7 +237,7 @@ export default function RegisterAgent() {
             // Simple Mode
             <>
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name" className="mb-2 block text-sm font-medium text-gray-700">
                   Agent Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -245,12 +252,15 @@ export default function RegisterAgent() {
                   }}
                   placeholder="MyAIAgent"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
                 />
               </div>
 
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="description"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -267,12 +277,12 @@ export default function RegisterAgent() {
                   placeholder="An AI agent that helps with task automation and decision making"
                   required
                   rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
                 />
               </div>
 
               <div>
-                <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="image" className="mb-2 block text-sm font-medium text-gray-700">
                   Image URL <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -289,16 +299,14 @@ export default function RegisterAgent() {
                   }}
                   placeholder="https://example.com/agent-avatar.png or ipfs://..."
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
                 />
-                <p className="mt-2 text-sm text-gray-500">
-                  URL to your agent's profile image
-                </p>
+                <p className="mt-2 text-sm text-gray-500">URL to your agent's profile image</p>
               </div>
 
               {/* JSON Preview in Simple Mode */}
-              <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
-                <div className="flex items-center justify-between mb-2">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
                   <label className="block text-sm font-medium text-blue-900">
                     <FontAwesomeIcon icon={faInfoCircle} className="mr-2" />
                     8004 Metadata Preview
@@ -306,7 +314,7 @@ export default function RegisterAgent() {
                   <button
                     type="button"
                     onClick={generateTemplateMetadata}
-                    className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                    className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition-colors hover:bg-blue-700"
                   >
                     Reset Template
                   </button>
@@ -315,21 +323,21 @@ export default function RegisterAgent() {
                   value={metadataJson}
                   readOnly
                   rows={8}
-                  className="w-full px-3 py-2 border border-blue-300 rounded bg-white font-mono text-xs"
+                  className="w-full rounded border border-blue-300 bg-white px-3 py-2 font-mono text-xs"
                 />
               </div>
             </>
           ) : (
             // Advanced Mode - Full JSON Editor
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <label htmlFor="metadata-json" className="block text-sm font-medium text-gray-700">
                   8004 Agent Metadata (JSON) <span className="text-red-500">*</span>
                 </label>
                 <button
                   type="button"
                   onClick={generateTemplateMetadata}
-                  className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                  className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition-colors hover:bg-blue-700"
                 >
                   Generate Template
                 </button>
@@ -341,11 +349,12 @@ export default function RegisterAgent() {
                 placeholder="Enter 8004 compliant JSON metadata or click 'Generate Template'"
                 required
                 rows={18}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none font-mono text-sm"
+                className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
               />
-              <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
+              <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
                 <FontAwesomeIcon icon={faInfoCircle} className="mr-2" />
-                <span className="font-semibold">8004 Standard:</span> Include type, name, description, image, endpoints, registrations, and supportedTrust fields
+                <span className="font-semibold">8004 Standard:</span> Include type, name,
+                description, image, endpoints, registrations, and supportedTrust fields
               </div>
             </div>
           )}
@@ -353,16 +362,16 @@ export default function RegisterAgent() {
           <button
             type="submit"
             disabled={loading || !metadataJson}
-            className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+            className="flex w-full items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <>
-                <FontAwesomeIcon icon={faSpinner} className="animate-spin h-5 w-5 mr-2" />
+                <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
                 {uploadingToWalrus ? 'Storing 8004 Metadata on Walrus...' : 'Registering Agent...'}
               </>
             ) : (
               <>
-                <FontAwesomeIcon icon={faRocket} className="h-5 w-5 mr-2" />
+                <FontAwesomeIcon icon={faRocket} className="mr-2 h-5 w-5" />
                 Register Agent with 8004 Metadata
               </>
             )}
@@ -371,46 +380,64 @@ export default function RegisterAgent() {
       </div>
 
       {result && (
-        <div className={`p-4 rounded-lg animate-in fade-in duration-300 ${result.includes('Error') ? 'bg-red-50 text-red-800 border-2 border-red-200' : 'bg-green-50 text-green-800 border-2 border-green-200'}`}>
+        <div
+          className={`animate-in fade-in rounded-lg border-2 p-4 duration-300 ${result.includes('Error') ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}
+        >
           <div className="flex items-start">
             {result.includes('Error') ? (
-              <FontAwesomeIcon icon={faTimesCircle} className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <FontAwesomeIcon icon={faTimesCircle} className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0" />
             ) : (
-              <FontAwesomeIcon icon={faCheckCircle} className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <FontAwesomeIcon icon={faCheckCircle} className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0" />
             )}
-            <p className="text-sm break-all flex-1">{result}</p>
+            <div className="flex-1 text-sm">
+              {result.includes('https://') ? (
+                <>
+                  {result.split('https://')[0]}
+                  <a
+                    href={`https://${result.split('https://')[1]}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold underline hover:text-green-900"
+                  >
+                    View on Suiscan →
+                  </a>
+                </>
+              ) : (
+                <p className="break-all">{result}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
-          <FontAwesomeIcon icon={faCloudUploadAlt} className="w-5 h-5 mr-2" />
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
+        <h3 className="mb-3 flex items-center font-semibold text-blue-900">
+          <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-2 h-5 w-5" />
           8004 Registration with Walrus Storage
         </h3>
-        <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
+        <div className="grid gap-4 text-sm text-blue-800 md:grid-cols-2">
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Full 8004 compliant metadata structure</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Supports multiple endpoint types (A2A, MCP, OASF, etc.)</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Metadata stored permanently on Walrus (10 epochs)</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Token URI automatically set to walrus://blobId</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Simple mode for quick setup, advanced for full control</span>
           </div>
           <div className="flex items-start">
-            <span className="text-blue-500 mr-2">•</span>
+            <span className="mr-2 text-blue-500">•</span>
             <span>Registrations and trust mechanisms included</span>
           </div>
         </div>

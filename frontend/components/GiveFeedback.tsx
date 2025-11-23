@@ -94,7 +94,9 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
             await suiClient.waitForTransaction({
               digest: result.digest,
             })
-            setResult(`Success! Feedback submitted. Transaction: ${result.digest}`)
+            setResult(
+              `Success! Feedback submitted. View transaction: https://suiscan.xyz/testnet/tx/${result.digest}`
+            )
             setLoading(false)
             setTimeout(() => {
               onSuccess()
@@ -208,7 +210,21 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
               <div
                 className={`mt-6 rounded-lg p-4 ${result.includes('Error') ? 'border border-red-200 bg-red-50 text-red-800' : 'border border-green-200 bg-green-50 text-green-800'}`}
               >
-                <p className="break-all text-sm">{result}</p>
+                {result.includes('https://') ? (
+                  <p className="text-sm">
+                    {result.split('https://')[0]}
+                    <a
+                      href={`https://${result.split('https://')[1]}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold underline hover:text-green-900"
+                    >
+                      View on Suiscan →
+                    </a>
+                  </p>
+                ) : (
+                  <p className="break-all text-sm">{result}</p>
+                )}
               </div>
             )}
           </div>
