@@ -19,6 +19,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   const [activeTab, setActiveTab] = useState<'request' | 'respond'>('request')
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState('')
+  const [selectedRespondAgent, setSelectedRespondAgent] = useState('')
   const [validatorAddress, setValidatorAddress] = useState('')
   const [requestInputType, setRequestInputType] = useState<'text' | 'file'>('text')
   const [requestText, setRequestText] = useState('')
@@ -26,10 +27,10 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   const [requestUri, setRequestUri] = useState('')
   const [requestHash, setRequestHash] = useState('')
   const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
-  const [responseHash, setResponseHash] = useState('')
-  const [response, setResponse] = useState(1)
-  const [responseUri, setResponseUri] = useState('')
-  const [responseTag, setResponseTag] = useState('')
+  const [validationRequests, setValidationRequests] = useState<any[]>([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  const [responseText, setResponseText] = useState<{ [key: string]: string }>({})
+  const [selectedResponse, setSelectedResponse] = useState<{ [key: string]: number }>({})
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string>('')
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
@@ -42,6 +43,12 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
       setValidatorAddress(account.address)
     }
   }, [account])
+
+  useEffect(() => {
+    if (selectedRespondAgent && account) {
+      loadValidationRequests()
+    }
+  }, [selectedRespondAgent, account])
 
   const loadAgents = async () => {
     if (!account) return
@@ -79,8 +86,86 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
       if (agentList.length > 0 && !selectedAgent) {
         setSelectedAgent(agentList[0].id)
       }
+      if (agentList.length > 0 && !selectedRespondAgent) {
+        setSelectedRespondAgent(agentList[0].id)
+      }
     } catch (error) {
       console.error('Error loading agents:', error)
+    }
+  }
+
+  const loadValidationRequests = async () => {
+    if (!account || !selectedRespondAgent) return
+
+    setLoadingRequests(true)
+    try {
+      const selectedAgentData = agents.find((a) => a.id === selectedRespondAgent)
+      if (!selectedAgentData) return
+
+      console.log('Loading requests for agent:', {
+        agentId: selectedAgentData.agentId,
+        validatorAddress: account.address,
+      })
+
+      // Query events to find validation requests for this agent
+      const events = await suiClient.queryEvents({
+        query: {
+          MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::validation_registry::ValidationRequestEvent`,
+        },
+        limit: 50,
+      })
+
+      console.log('Total events found:', events.data.length)
+      console.log(
+        'Events data:',
+        events.data.map((e: any) => e.parsedJson)
+      )
+
+      // Filter events for the selected agent and where the validator is the current user
+      const agentRequests = events.data
+        .filter((event: any) => {
+          const data = event.parsedJson
+          // Convert both to strings for comparison to handle type mismatches
+          const eventAgentId = String(data.agent_id)
+          const selectedAgentId = String(selectedAgentData.agentId)
+          const eventValidator = String(data.validator).toLowerCase()
+          const currentValidator = String(account.address).toLowerCase()
+
+          console.log('Comparing:', {
+            eventAgentId,
+            selectedAgentId,
+            match: eventAgentId === selectedAgentId,
+            eventValidator,
+            currentValidator,
+            validatorMatch: eventValidator === currentValidator,
+          })
+
+          return eventAgentId === selectedAgentId && eventValidator === currentValidator
+        })
+        .map((event: any) => ({
+          requestHash: event.parsedJson.request_hash,
+          agentId: event.parsedJson.agent_id,
+          validator: event.parsedJson.validator,
+          timestamp: event.timestampMs,
+        }))
+
+      console.log('Filtered agent requests:', agentRequests)
+      setValidationRequests(agentRequests)
+
+      // Initialize response states for each request
+      const initialResponses: { [key: string]: number } = {}
+      const initialTexts: { [key: string]: string } = {}
+      agentRequests.forEach((req: any) => {
+        const hashKey = Array.isArray(req.requestHash) ? req.requestHash.join(',') : req.requestHash
+        initialResponses[hashKey] = 2 // Default to pending
+        initialTexts[hashKey] = ''
+      })
+      setSelectedResponse(initialResponses)
+      setResponseText(initialTexts)
+    } catch (error) {
+      console.error('Error loading validation requests:', error)
+    } finally {
+      setLoadingRequests(false)
     }
   }
 
@@ -205,29 +290,70 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
     }
   }
 
-  const handleValidationResponse = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleValidationResponse = async (requestHash: any, responseStatus: number) => {
+    if (!account) return
 
     setLoading(true)
     setResult('')
 
     try {
-      const tx = new Transaction()
+      const hashKey = Array.isArray(requestHash) ? requestHash.join(',') : requestHash
+      const hashArray = Array.isArray(requestHash)
+        ? requestHash
+        : Array.from(new TextEncoder().encode(requestHash))
 
-      const requestHashBytes = new Uint8Array(new TextEncoder().encode(responseHash))
-      const responseUriBytes = new Uint8Array(new TextEncoder().encode(responseUri))
-      const responseHashBytes = new Uint8Array(new TextEncoder().encode(requestHash))
-      const tagBytes = new Uint8Array(new TextEncoder().encode(responseTag))
+      let finalResponseUri = ''
+      let finalResponseHash = ''
+
+      // If response text is provided, upload to Walrus
+      if (responseText[hashKey] && responseText[hashKey].trim()) {
+        setUploadingToWalrus(true)
+        setResult('Uploading response data to Walrus...')
+
+        const responseData = {
+          type: 'validation-response',
+          requestHash: hashKey,
+          response: responseStatus,
+          content: responseText[hashKey],
+          timestamp: new Date().toISOString(),
+          validator: account.address,
+        }
+
+        const { blobId, walrusUri } = await storeMetadataWithFlow(
+          responseData as any,
+          account.address,
+          signAndExecute,
+          suiClient,
+          10
+        )
+
+        finalResponseUri = walrusUri
+
+        // Generate hash from response data
+        const dataBytes = new TextEncoder().encode(JSON.stringify(responseData))
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBytes)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        finalResponseHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+        setUploadingToWalrus(false)
+        setResult('Response data uploaded. Submitting on-chain...')
+      } else {
+        // No response text, use empty values
+        finalResponseUri = ''
+        finalResponseHash = ''
+      }
+
+      const tx = new Transaction()
 
       tx.moveCall({
         target: `${MODULES.VALIDATION_REGISTRY}::validation_response`,
         arguments: [
           tx.object(CONTRACT_CONFIG.VALIDATION_REGISTRY_ID),
-          tx.pure(requestHashBytes),
-          tx.pure.u8(response),
-          tx.pure(responseUriBytes),
-          tx.pure(responseHashBytes),
-          tx.pure(tagBytes),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new Uint8Array(hashArray))),
+          tx.pure.u8(responseStatus),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(finalResponseUri))),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(finalResponseHash))),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(''))), // tag
         ],
       })
 
@@ -241,10 +367,11 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
               digest: result.digest,
             })
             setResult(`Success! Validation response submitted. Transaction: ${result.digest}`)
-            setResponseHash('')
-            setResponseUri('')
-            setResponseTag('')
             setLoading(false)
+            // Reload requests to show updated status
+            setTimeout(() => {
+              loadValidationRequests()
+            }, 2000)
           },
           onError: (error) => {
             console.error('Transaction failed:', error)
@@ -257,6 +384,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
       console.error('Error:', error)
       setResult(`Error: ${error.message}`)
       setLoading(false)
+      setUploadingToWalrus(false)
     }
   }
 
@@ -477,119 +605,188 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                 <div className="space-y-6">
                   <div>
                     <h2 className="mb-2 text-2xl font-bold text-gray-900">Respond to Validation</h2>
-                    <p className="text-gray-600">Submit your validation response for a request</p>
+                    <p className="text-gray-600">
+                      Review and respond to validation requests for your agents
+                    </p>
                   </div>
 
-                  <form onSubmit={handleValidationResponse} className="space-y-6">
-                    <div>
-                      <label
-                        htmlFor="responseHash"
-                        className="mb-2 block text-sm font-medium text-gray-700"
-                      >
-                        Request Hash
-                      </label>
-                      <input
-                        type="text"
-                        id="responseHash"
-                        value={responseHash}
-                        onChange={(e) => setResponseHash(e.target.value)}
-                        placeholder="Hash of the request you're responding to"
-                        className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
-                        required
-                      />
+                  {agents.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <p className="mb-4 text-gray-600">You need to register an agent first.</p>
                     </div>
-
-                    <div>
-                      <label className="mb-3 block text-sm font-medium text-gray-700">
-                        Response Status
-                      </label>
-                      <div className="grid grid-cols-3 gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setResponse(0)}
-                          className={`rounded-lg border-2 px-4 py-3 transition-all ${
-                            response === 0
-                              ? 'border-red-500 bg-red-50 font-semibold text-red-700'
-                              : 'border-gray-300 hover:border-gray-400'
-                          }`}
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Agent Selection */}
+                      <div>
+                        <label
+                          htmlFor="respondAgent"
+                          className="mb-2 block text-sm font-medium text-gray-700"
                         >
-                          Rejected (0)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setResponse(1)}
-                          className={`rounded-lg border-2 px-4 py-3 transition-all ${
-                            response === 1
-                              ? 'border-green-500 bg-green-50 font-semibold text-green-700'
-                              : 'border-gray-300 hover:border-gray-400'
-                          }`}
+                          Select Agent
+                        </label>
+                        <select
+                          id="respondAgent"
+                          value={selectedRespondAgent}
+                          onChange={(e) => setSelectedRespondAgent(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
                         >
-                          Approved (1)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setResponse(2)}
-                          className={`rounded-lg border-2 px-4 py-3 transition-all ${
-                            response === 2
-                              ? 'border-yellow-500 bg-yellow-50 font-semibold text-yellow-700'
-                              : 'border-gray-300 hover:border-gray-400'
-                          }`}
-                        >
-                          ⏳ Pending (2)
-                        </button>
+                          {agents.map((agent) => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name || `Agent ${agent.agentId}`} (ID: {agent.agentId})
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </div>
 
-                    <div>
-                      <label
-                        htmlFor="responseUri"
-                        className="mb-2 block text-sm font-medium text-gray-700"
-                      >
-                        Response URI
-                      </label>
-                      <input
-                        type="text"
-                        id="responseUri"
-                        value={responseUri}
-                        onChange={(e) => setResponseUri(e.target.value)}
-                        placeholder="ipfs://QmYourResponseData"
-                        className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="responseTag"
-                        className="mb-2 block text-sm font-medium text-gray-700"
-                      >
-                        Tag <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        id="responseTag"
-                        value={responseTag}
-                        onChange={(e) => setResponseTag(e.target.value)}
-                        placeholder="validation-type, category, etc."
-                        className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex w-full items-center justify-center rounded-lg bg-secondary px-6 py-3 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <>
-                          <FontAwesomeIcon icon={faSpinner} className="mr-2 h-5 w-5 animate-spin" />
-                          Submitting...
-                        </>
+                      {/* Validation Requests List */}
+                      {loadingRequests ? (
+                        <div className="flex items-center justify-center py-12">
+                          <FontAwesomeIcon
+                            icon={faSpinner}
+                            className="mr-2 h-8 w-8 animate-spin text-primary"
+                          />
+                          <span className="text-gray-600">Loading validation requests...</span>
+                        </div>
+                      ) : validationRequests.length === 0 ? (
+                        <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
+                          <p className="text-gray-600">
+                            No validation requests found for this agent where you are the validator.
+                          </p>
+                        </div>
                       ) : (
-                        'Submit Response'
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Pending Requests ({validationRequests.length})
+                          </h3>
+
+                          {validationRequests.map((request, idx) => {
+                            const hashKey = Array.isArray(request.requestHash)
+                              ? request.requestHash.join(',')
+                              : request.requestHash
+                            const responseStatus = selectedResponse[hashKey] || 2
+
+                            return (
+                              <div
+                                key={idx}
+                                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                              >
+                                <div className="mb-4 flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="mb-2 text-sm font-semibold text-gray-900">
+                                      Validation Request #{idx + 1}
+                                    </h4>
+                                    <p className="mb-1 text-xs text-gray-600">
+                                      <span className="font-medium">Agent ID:</span>{' '}
+                                      {request.agentId}
+                                    </p>
+                                    <p className="mb-1 text-xs text-gray-600">
+                                      <span className="font-medium">Request Hash:</span>{' '}
+                                      <span className="break-all font-mono">
+                                        {Array.isArray(request.requestHash)
+                                          ? '0x' +
+                                            request.requestHash
+                                              .map((b: number) => b.toString(16).padStart(2, '0'))
+                                              .join('')
+                                              .slice(0, 32) +
+                                            '...'
+                                          : request.requestHash.slice(0, 32) + '...'}
+                                      </span>
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(parseInt(request.timestamp)).toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Response Status Buttons */}
+                                <div className="mb-4">
+                                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    Your Response
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedResponse({ ...selectedResponse, [hashKey]: 1 })
+                                      }
+                                      disabled={loading}
+                                      className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
+                                        responseStatus === 1
+                                          ? 'border-green-500 bg-green-500 text-white shadow-md'
+                                          : 'border-green-500 bg-white text-green-700 hover:bg-green-50'
+                                      }`}
+                                    >
+                                      <span className="text-lg">✓</span> Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedResponse({ ...selectedResponse, [hashKey]: 0 })
+                                      }
+                                      disabled={loading}
+                                      className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-all ${
+                                        responseStatus === 0
+                                          ? 'border-red-500 bg-red-500 text-white shadow-md'
+                                          : 'border-red-500 bg-white text-red-700 hover:bg-red-50'
+                                      }`}
+                                    >
+                                      <span className="text-lg">✗</span> Reject
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Optional Response Text */}
+                                <div className="mb-4">
+                                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    Response Details{' '}
+                                    <span className="font-normal text-gray-400">(optional)</span>
+                                  </label>
+                                  <textarea
+                                    value={responseText[hashKey] || ''}
+                                    onChange={(e) =>
+                                      setResponseText({
+                                        ...responseText,
+                                        [hashKey]: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Add optional details about your validation... This will be stored on Walrus."
+                                    rows={3}
+                                    disabled={loading}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                                  />
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    If provided, will be uploaded to Walrus with auto-generated hash
+                                  </p>
+                                </div>
+
+                                {/* Submit Button */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleValidationResponse(request.requestHash, responseStatus)
+                                  }
+                                  disabled={loading}
+                                  className="flex w-full items-center justify-center rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {loading ? (
+                                    <>
+                                      <FontAwesomeIcon
+                                        icon={faSpinner}
+                                        className="mr-2 h-4 w-4 animate-spin"
+                                      />
+                                      {uploadingToWalrus ? 'Uploading...' : 'Submitting...'}
+                                    </>
+                                  ) : (
+                                    'Submit Response'
+                                  )}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
                       )}
-                    </button>
-                  </form>
+                    </div>
+                  )}
                 </div>
               )}
 
