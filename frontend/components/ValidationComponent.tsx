@@ -7,7 +7,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/sui/bcs'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, MODULES, STRUCT_TYPES } from '@/config/contracts'
-import { storeMetadataWithFlow } from '@/utils/walrus'
+import { storeMetadataWithFlow, readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
 import type { Agent } from '@/types'
 
 interface ValidationComponentProps {
@@ -29,6 +29,8 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
   const [validationRequests, setValidationRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
+  const [requestData, setRequestData] = useState<{ [key: string]: any }>({})
+  const [loadingRequestData, setLoadingRequestData] = useState<{ [key: string]: boolean }>({})
   const [responseText, setResponseText] = useState<{ [key: string]: string }>({})
   const [selectedResponse, setSelectedResponse] = useState<{ [key: string]: number }>({})
   const [loading, setLoading] = useState(false)
@@ -150,7 +152,96 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
         }))
 
       console.log('Filtered agent requests:', agentRequests)
-      setValidationRequests(agentRequests)
+
+      // Fetch request URI from the contract table for each request
+      const requestsWithData = await Promise.all(
+        agentRequests.map(async (req) => {
+          const hashArray = Array.isArray(req.requestHash) ? req.requestHash : []
+          let requestUri = ''
+
+          try {
+            // Get the parent object (ValidationRegistry) and look for the request in its fields
+            const registryObject = await suiClient.getObject({
+              id: CONTRACT_CONFIG.VALIDATION_REGISTRY_ID,
+              options: {
+                showContent: true,
+              },
+            })
+
+            if (registryObject.data?.content?.dataType === 'moveObject') {
+              const fields = (registryObject.data.content as any).fields
+
+              // The requests table ID should be in the fields
+              if (fields.requests && fields.requests.fields && fields.requests.fields.id) {
+                const tableId = fields.requests.fields.id.id
+
+                // Try to get the dynamic field
+                try {
+                  const dynamicField = await suiClient.getDynamicFieldObject({
+                    parentId: tableId,
+                    name: {
+                      type: 'vector<u8>',
+                      value: hashArray,
+                    },
+                  })
+
+                  if (dynamicField.data?.content?.dataType === 'moveObject') {
+                    const requestFields = (dynamicField.data.content as any).fields.value
+                    requestUri = requestFields.request_uri || ''
+                    console.log('Found request URI for hash:', hashArray, ':', requestUri)
+                  }
+                } catch (dfError) {
+                  console.error('Error fetching dynamic field:', dfError)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching request details:', error)
+          }
+
+          return { ...req, requestUri }
+        })
+      )
+
+      console.log('Requests with URIs:', requestsWithData)
+      setValidationRequests(requestsWithData)
+
+      // Load request data from Walrus for each request
+      requestsWithData.forEach(async (req) => {
+        const hashKey = Array.isArray(req.requestHash) ? req.requestHash.join(',') : req.requestHash
+
+        if (req.requestUri) {
+          setLoadingRequestData((prev) => ({ ...prev, [hashKey]: true }))
+
+          try {
+            if (req.requestUri.startsWith('walrus://')) {
+              console.log('Fetching from Walrus:', req.requestUri)
+              const metadata = await readMetadataFromWalrus(extractBlobId(req.requestUri))
+              console.log('Loaded metadata:', metadata)
+              setRequestData((prev) => ({ ...prev, [hashKey]: metadata }))
+            } else {
+              setRequestData((prev) => ({
+                ...prev,
+                [hashKey]: { info: 'Not a Walrus URI', uri: req.requestUri },
+              }))
+            }
+          } catch (error) {
+            console.error('Error loading request data from Walrus:', error)
+            setRequestData((prev) => ({
+              ...prev,
+              [hashKey]: { error: 'Failed to load data from Walrus', uri: req.requestUri },
+            }))
+          } finally {
+            setLoadingRequestData((prev) => ({ ...prev, [hashKey]: false }))
+          }
+        } else {
+          setRequestData((prev) => ({
+            ...prev,
+            [hashKey]: { error: 'No request URI found in contract' },
+          }))
+          setLoadingRequestData((prev) => ({ ...prev, [hashKey]: false }))
+        }
+      })
 
       // Initialize response states for each request
       const initialResponses: { [key: string]: number } = {}
@@ -692,10 +783,125 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                                           : request.requestHash.slice(0, 32) + '...'}
                                       </span>
                                     </p>
+                                    {request.requestUri && (
+                                      <p className="mb-1 text-xs text-gray-600">
+                                        <span className="font-medium">Request URI:</span>{' '}
+                                        <a
+                                          href={request.requestUri}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="break-all font-mono text-primary hover:underline"
+                                        >
+                                          {request.requestUri}
+                                        </a>
+                                      </p>
+                                    )}
                                     <p className="text-xs text-gray-500">
                                       {new Date(parseInt(request.timestamp)).toLocaleString()}
                                     </p>
                                   </div>
+                                </div>
+
+                                {/* Request Data */}
+                                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                  <h5 className="mb-2 text-sm font-semibold text-gray-900">
+                                    Request Data
+                                  </h5>
+                                  {loadingRequestData[hashKey] ? (
+                                    <div className="flex items-center gap-2 py-4 text-sm text-gray-600">
+                                      <FontAwesomeIcon
+                                        icon={faSpinner}
+                                        className="h-4 w-4 animate-spin"
+                                      />
+                                      Loading request data from Walrus...
+                                    </div>
+                                  ) : requestData[hashKey] ? (
+                                    <div className="space-y-2">
+                                      {requestData[hashKey].error ? (
+                                        <div className="text-sm">
+                                          <p className="text-red-600">
+                                            {requestData[hashKey].error}
+                                          </p>
+                                          {requestData[hashKey].uri && (
+                                            <p className="mt-2 text-xs text-gray-600">
+                                              <span className="font-medium">URI:</span>{' '}
+                                              <a
+                                                href={requestData[hashKey].uri}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary hover:underline"
+                                              >
+                                                {requestData[hashKey].uri}
+                                              </a>
+                                            </p>
+                                          )}
+                                        </div>
+                                      ) : requestData[hashKey].info ? (
+                                        <div className="text-sm">
+                                          <p className="text-gray-600">
+                                            {requestData[hashKey].info}
+                                          </p>
+                                          {requestData[hashKey].uri && (
+                                            <p className="mt-2 text-xs text-gray-600">
+                                              <span className="font-medium">URI:</span>{' '}
+                                              <a
+                                                href={requestData[hashKey].uri}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary hover:underline"
+                                              >
+                                                {requestData[hashKey].uri}
+                                              </a>
+                                            </p>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {requestData[hashKey].content && (
+                                            <div>
+                                              <p className="mb-1 text-xs font-medium text-gray-700">
+                                                Content:
+                                              </p>
+                                              <div className="max-h-32 overflow-y-auto rounded border border-gray-300 bg-white p-3">
+                                                <p className="whitespace-pre-wrap text-xs text-gray-900">
+                                                  {requestData[hashKey].content}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                          {requestData[hashKey].fileName && (
+                                            <p className="text-xs text-gray-600">
+                                              <span className="font-medium">File:</span>{' '}
+                                              {requestData[hashKey].fileName}
+                                            </p>
+                                          )}
+                                          {requestData[hashKey].timestamp && (
+                                            <p className="text-xs text-gray-600">
+                                              <span className="font-medium">Submitted:</span>{' '}
+                                              {new Date(
+                                                requestData[hashKey].timestamp
+                                              ).toLocaleString()}
+                                            </p>
+                                          )}
+                                          {requestData[hashKey].requester && (
+                                            <p className="text-xs text-gray-600">
+                                              <span className="font-medium">Requester:</span>{' '}
+                                              <span className="font-mono">
+                                                {requestData[hashKey].requester.slice(0, 6)}...
+                                                {requestData[hashKey].requester.slice(-4)}
+                                              </span>
+                                            </p>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-gray-500">
+                                      {request.requestUri
+                                        ? 'Waiting to load request data...'
+                                        : 'No request URI available'}
+                                    </p>
+                                  )}
                                 </div>
 
                                 {/* Response Status Buttons */}
