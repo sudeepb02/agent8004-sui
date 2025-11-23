@@ -27,7 +27,7 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!feedbackText.trim()) {
       setResult('Error: Please enter feedback text')
       return
@@ -45,7 +45,7 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
       // Step 1: Store feedback on Walrus
       setUploadingToWalrus(true)
       setResult('Uploading feedback to Walrus...')
-      
+
       const feedbackData = {
         agentId: agent.agentId,
         score: score,
@@ -116,128 +116,171 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <button
         onClick={onBack}
-        className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+        className="flex items-center text-gray-600 transition-colors hover:text-gray-900"
       >
-        <FontAwesomeIcon icon={faArrowLeft} className="w-5 h-5 mr-2" />
+        <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-5 w-5" />
         Back to Agent Details
       </button>
 
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Give Feedback</h2>
-          <p className="text-gray-600">
-            Submit your feedback for Agent #{agent.agentId}
-          </p>
+      {/* Two Column Layout */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column - Feedback Form (2/3 width) */}
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-xl bg-white p-8 shadow-lg">
+            <div className="mb-6">
+              <h2 className="mb-2 text-2xl font-bold text-gray-900">Give Feedback</h2>
+              <p className="text-gray-600">Submit your feedback for Agent #{agent.agentId}</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Score Slider */}
+              <div>
+                <label className="mb-3 block text-sm font-medium text-gray-700">
+                  Score: <span className="text-2xl font-bold text-primary">{score}</span>/100
+                </label>
+                <div className="relative">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={score}
+                    onChange={(e) => setScore(parseInt(e.target.value))}
+                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200"
+                    style={{ accentColor: '#6366f1' }}
+                  />
+                  <div className="mt-2 flex justify-between text-xs text-gray-500">
+                    <span>Poor (0)</span>
+                    <span>Average (50)</span>
+                    <span>Excellent (100)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback Text */}
+              <div>
+                <label
+                  htmlFor="feedbackText"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Feedback Text <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="feedbackText"
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Enter your detailed feedback here... This will be stored on Walrus for permanent verification."
+                  rows={8}
+                  required
+                  className="resize-vertical w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  Your feedback will be stored on Walrus and linked on-chain with hash verification
+                </p>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading || !feedbackText.trim()}
+                className="flex w-full items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <FontAwesomeIcon
+                      icon={faSpinner}
+                      className="-ml-1 mr-3 h-5 w-5 animate-spin text-white"
+                    />
+                    {uploadingToWalrus ? 'Uploading to Walrus...' : 'Submitting...'}
+                  </>
+                ) : (
+                  <>
+                    <FontAwesomeIcon icon={faCheck} className="mr-2 h-5 w-5" />
+                    Submit Feedback
+                  </>
+                )}
+              </button>
+            </form>
+
+            {result && (
+              <div
+                className={`mt-6 rounded-lg p-4 ${result.includes('Error') ? 'border border-red-200 bg-red-50 text-red-800' : 'border border-green-200 bg-green-50 text-green-800'}`}
+              >
+                <p className="break-all text-sm">{result}</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Score Slider */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Score: <span className="text-2xl font-bold text-primary">{score}</span>/100
-            </label>
-            <div className="relative">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={score}
-                onChange={(e) => setScore(parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                style={{ accentColor: '#6366f1' }}
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>Poor (0)</span>
-                <span>Average (50)</span>
-                <span>Excellent (100)</span>
+        {/* Right Column - Information (1/3 width) */}
+        <div className="space-y-6">
+          {/* How It Works */}
+          <div className="rounded-xl bg-white p-6 shadow-lg">
+            <h3 className="mb-4 text-lg font-bold text-gray-900">How It Works</h3>
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  1
+                </div>
+                <p className="text-sm text-gray-700">
+                  Your feedback text is stored on Walrus (decentralized storage)
+                </p>
               </div>
-            </div>
-            
-            {/* Visual Score Indicator */}
-            <div className="mt-4 p-4 rounded-lg border-2" style={{
-              borderColor: score < 30 ? '#ef4444' : score < 70 ? '#f59e0b' : '#10b981',
-              backgroundColor: score < 30 ? '#fee2e2' : score < 70 ? '#fef3c7' : '#d1fae5'
-            }}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium" style={{
-                  color: score < 30 ? '#991b1b' : score < 70 ? '#92400e' : '#065f46'
-                }}>
-                  {score < 30 ? 'Poor Performance' : score < 70 ? 'Good Performance' : 'Excellent Performance'}
-                </span>
-                <span className="text-2xl">
-                  {score < 30 ? '(' : score < 70 ? ':)' : ':D'}
-                </span>
+              <div className="flex gap-3">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  2
+                </div>
+                <p className="text-sm text-gray-700">The Walrus blob ID becomes the feedback URI</p>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  3
+                </div>
+                <p className="text-sm text-gray-700">
+                  A SHA-256 hash is generated for verification
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  4
+                </div>
+                <p className="text-sm text-gray-700">The URI and hash are recorded on-chain</p>
               </div>
             </div>
           </div>
 
-          {/* File URI */}
-          <div>
-            <label htmlFor="feedbackText" className="block text-sm font-medium text-gray-700 mb-2">
-              Feedback Text <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="feedbackText"
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Enter your detailed feedback here... This will be stored on Walrus for permanent verification."
-              rows={6}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-vertical"
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Your feedback will be stored on Walrus and linked on-chain with hash verification
-            </p>
-          </div>
-
-          {/* File Hash */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
-            <ul className="text-xs text-blue-800 space-y-1">
-              <li>1. Your feedback text is stored on Walrus (decentralized storage)</li>
-              <li>2. The Walrus blob ID becomes the feedback URI</li>
-              <li>3. A SHA-256 hash is generated for verification</li>
-              <li>4. The URI and hash are recorded on-chain</li>
+          {/* Feedback Guidelines */}
+          <div className="rounded-xl bg-white p-6 shadow-lg">
+            <h3 className="mb-4 text-lg font-bold text-gray-900">Feedback Guidelines</h3>
+            <ul className="space-y-3 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span className="text-primary">•</span>
+                <span>
+                  <strong>Score from 0-100:</strong> Be fair and honest in your assessment
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary">•</span>
+                <span>
+                  <strong>Write detailed feedback</strong> explaining your rating
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary">•</span>
+                <span>
+                  Feedback is stored on <strong>Walrus</strong> decentralized data AVS storage
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary">•</span>
+                <span>
+                  Feedback is <strong>permanently recorded</strong> on-chain with verification
+                </span>
+              </li>
             </ul>
           </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || !feedbackText.trim()}
-            className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-          >
-            {loading ? (
-              <>
-                <FontAwesomeIcon icon={faSpinner} className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
-                {uploadingToWalrus ? 'Uploading to Walrus...' : 'Submitting...'}
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faCheck} className="w-5 h-5 mr-2" />
-                Submit Feedback
-              </>
-            )}
-          </button>
-        </form>
-
-        {result && (
-          <div className={`mt-6 p-4 rounded-lg ${result.includes('Error') ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-green-50 text-green-800 border border-green-200'}`}>
-            <p className="text-sm break-all">{result}</p>
-          </div>
-        )}
-
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-900 mb-2">Feedback Guidelines</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Score from 0-100: Be fair and honest in your assessment</li>
-            <li>• Write detailed feedback explaining your rating</li>
-            <li>• Feedback is stored on Walrus (decentralized storage)</li>
-            <li>• Feedback is permanently recorded on-chain with verification</li>
-          </ul>
         </div>
       </div>
     </div>
