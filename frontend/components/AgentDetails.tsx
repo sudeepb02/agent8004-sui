@@ -13,6 +13,7 @@ import {
   faSpinner,
   faArrowsRotate,
   faPlus,
+  faCopy,
 } from '@fortawesome/free-solid-svg-icons'
 import { useSuiClient, useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
@@ -60,6 +61,7 @@ export default function AgentDetails({
   const [feedbackHistory, setFeedbackHistory] = useState<any[]>([])
   const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(false)
   const [feedbackData, setFeedbackData] = useState<{ [key: string]: any }>({})
+  const [copiedMetadata, setCopiedMetadata] = useState(false)
 
   const isOwner = account?.address === agent.owner
 
@@ -770,29 +772,6 @@ export default function AgentDetails({
                   <div className="mt-4 border-b border-gray-200"></div>
                 </div>
               )}
-
-            {/* Raw Metadata from Walrus */}
-            {currentAgent.tokenUri && currentAgent.tokenUri.startsWith('walrus://') && (
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-900">
-                  Raw Metadata (from Walrus)
-                </h3>
-                {loadingMetadata ? (
-                  <div className="flex items-center justify-center py-8 text-gray-500">
-                    <FontAwesomeIcon icon={faSpinner} className="mr-2 animate-spin" />
-                    Loading metadata...
-                  </div>
-                ) : rawMetadata ? (
-                  <div className="rounded border border-gray-200 bg-gray-50 p-3">
-                    <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs">
-                      {JSON.stringify(rawMetadata, null, 2)}
-                    </pre>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No metadata available</p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Feedback History */}
@@ -1012,6 +991,47 @@ export default function AgentDetails({
               </button>
             </div>
           </div>
+
+          {/* Raw Metadata from Walrus */}
+          {currentAgent.tokenUri && currentAgent.tokenUri.startsWith('walrus://') && (
+            <div className="rounded-xl bg-white p-6 shadow-lg">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">Raw Metadata</h3>
+                {rawMetadata && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(rawMetadata, null, 2))
+                      setCopiedMetadata(true)
+                      setTimeout(() => setCopiedMetadata(false), 2000)
+                    }}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      copiedMetadata
+                        ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="Copy metadata to clipboard"
+                  >
+                    <FontAwesomeIcon icon={faCopy} className="mr-1 h-3 w-3" />
+                    {copiedMetadata ? 'Copied!' : 'Copy'}
+                  </button>
+                )}
+              </div>
+              {loadingMetadata ? (
+                <div className="flex items-center justify-center py-8 text-gray-500">
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 animate-spin" />
+                  Loading metadata...
+                </div>
+              ) : rawMetadata ? (
+                <div className="max-h-96 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-gray-900">
+                    {JSON.stringify(rawMetadata, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No metadata available</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
