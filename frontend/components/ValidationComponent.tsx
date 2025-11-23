@@ -46,17 +46,26 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
         },
         options: {
           showContent: true,
+          showType: true,
         },
       })
 
       const agentList: Agent[] = objects.data
         .filter((obj) => obj.data?.content?.dataType === 'moveObject')
-        .map((obj: any) => ({
-          id: obj.data.objectId,
-          agentId: obj.data.content.fields.agent_id,
-          tokenUri: obj.data.content.fields.token_uri,
-          owner: obj.data.content.fields.owner,
-        }))
+        .map((obj: any) => {
+          const fields = obj.data.content.fields
+
+          return {
+            id: obj.data.objectId,
+            agentId: fields.agent_id,
+            name: fields.name || '',
+            description: fields.description || '',
+            image: fields.image || '',
+            tokenUri: fields.token_uri || '',
+            endpoints: [],
+            owner: fields.owner,
+          }
+        })
 
       setAgents(agentList)
       if (agentList.length > 0 && !selectedAgent) {
@@ -247,7 +256,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                         >
                           {agents.map((agent) => (
                             <option key={agent.id} value={agent.id}>
-                              Agent #{agent.agentId} - {agent.id.slice(0, 16)}...
+                              {agent.name || `Agent ${agent.agentId}`} (ID: {agent.agentId})
                             </option>
                           ))}
                         </select>
