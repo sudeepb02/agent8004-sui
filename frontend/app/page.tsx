@@ -90,7 +90,7 @@ export default function Home() {
       case 'register':
         return <RegisterAgent />
       case 'myAgents':
-        return <AgentList />
+        return <AgentList onSelectAgent={handleSelectAgent} />
       case 'metadata':
         return <SetMetadata />
       case 'validation':

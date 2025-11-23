@@ -8,7 +8,11 @@ import { STRUCT_TYPES } from '@/config/contracts'
 import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
 import type { Agent, Endpoint } from '@/types'
 
-export default function AgentList() {
+interface AgentListProps {
+  onSelectAgent?: (agent: Agent) => void
+}
+
+export default function AgentList({ onSelectAgent }: AgentListProps) {
   const account = useCurrentAccount()
   const suiClient = useSuiClient()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -128,7 +132,8 @@ export default function AgentList() {
         {agents.map((agent) => (
           <div
             key={agent.id}
-            className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300 group"
+            onClick={() => onSelectAgent?.(agent)}
+            className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer group transform hover:-translate-y-1"
           >
             {/* Agent Image */}
             <div className="relative aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 overflow-hidden">
@@ -221,6 +226,11 @@ export default function AgentList() {
                   </div>
                 )}
               </div>
+
+              {/* View Details Button */}
+              <button className="mt-4 w-full bg-gradient-to-r from-primary to-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:from-indigo-600 hover:to-primary transition-all shadow-md hover:shadow-lg transform group-hover:scale-[1.02]">
+                View Details
+              </button>
             </div>
           </div>
         ))}
