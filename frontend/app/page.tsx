@@ -1,7 +1,15 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faLock, faRocket, faStore, faUser, faPlus, faShieldAlt, faStar } from '@fortawesome/free-solid-svg-icons'
+import {
+  faLock,
+  faRocket,
+  faStore,
+  faUser,
+  faPlus,
+  faShieldAlt,
+  faStar,
+} from '@fortawesome/free-solid-svg-icons'
 import { ConnectButton, useCurrentAccount } from '@mysten/dapp-kit'
 import { useState } from 'react'
 import AgentList from '@/components/AgentList'
@@ -12,7 +20,13 @@ import GiveFeedback from '@/components/GiveFeedback'
 import ValidationComponent from '@/components/ValidationComponent'
 import type { Agent } from '@/types'
 
-type ViewType = 'marketplace' | 'register' | 'myAgents' | 'validation' | 'agentDetails' | 'giveFeedback'
+type ViewType =
+  | 'marketplace'
+  | 'register'
+  | 'myAgents'
+  | 'validation'
+  | 'agentDetails'
+  | 'giveFeedback'
 
 export default function Home() {
   const account = useCurrentAccount()
@@ -40,13 +54,13 @@ export default function Home() {
   const renderContent = () => {
     if (!account) {
       return (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="rounded-lg bg-white p-12 text-center shadow">
           <div className="mb-8">
-            <div className="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-6">
-              <FontAwesomeIcon icon={faLock} className="w-12 h-12 text-white" />
+            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-blue-600">
+              <FontAwesomeIcon icon={faLock} className="h-12 w-12 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Welcome to Agent Marketplace</h2>
-            <p className="text-gray-600 text-lg mb-8">
+            <h2 className="mb-3 text-3xl font-bold text-gray-900">Welcome to agent8004</h2>
+            <p className="mb-8 text-lg text-gray-600">
               Connect your Sui wallet to explore, register, and interact with AI agents
             </p>
             <div className="flex justify-center">
@@ -54,29 +68,35 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 mt-12 text-left">
-            <div className="bg-blue-50 rounded-lg p-6">
-              <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                <FontAwesomeIcon icon={faStore} className="w-6 h-6 text-blue-600" />
+          <div className="mt-12 grid gap-6 text-left md:grid-cols-3">
+            <div className="rounded-lg bg-blue-50 p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
+                <FontAwesomeIcon icon={faStore} className="h-6 w-6 text-blue-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Discover Agents</h3>
-              <p className="text-gray-600 text-sm">Browse the marketplace and find AI agents for your needs</p>
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">Discover Agents</h3>
+              <p className="text-sm text-gray-600">
+                Browse the marketplace and find AI agents for your needs
+              </p>
             </div>
 
-            <div className="bg-green-50 rounded-lg p-6">
-              <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                <FontAwesomeIcon icon={faStar} className="w-6 h-6 text-green-600" />
+            <div className="rounded-lg bg-green-50 p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
+                <FontAwesomeIcon icon={faStar} className="h-6 w-6 text-green-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Rate & Review</h3>
-              <p className="text-gray-600 text-sm">Share your experience and help build agent reputation</p>
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">Rate & Review</h3>
+              <p className="text-sm text-gray-600">
+                Share your experience and help build agent reputation
+              </p>
             </div>
 
-            <div className="bg-purple-50 rounded-lg p-6">
-              <div className="bg-purple-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                <FontAwesomeIcon icon={faShieldAlt} className="w-6 h-6 text-purple-600" />
+            <div className="rounded-lg bg-purple-50 p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
+                <FontAwesomeIcon icon={faShieldAlt} className="h-6 w-6 text-purple-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Validate Agents</h3>
-              <p className="text-gray-600 text-sm">Verify agent interactions and build trust in the ecosystem</p>
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">Validate Agents</h3>
+              <p className="text-sm text-gray-600">
+                Verify agent interactions and build trust in the ecosystem
+              </p>
             </div>
           </div>
         </div>
@@ -117,16 +137,16 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('marketplace')}>
-              <div className="bg-blue-600 w-10 h-10 rounded-lg flex items-center justify-center mr-3">
-                <FontAwesomeIcon icon={faRocket} className="w-6 h-6 text-white" />
-              </div>
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div
+              className="flex cursor-pointer items-center"
+              onClick={() => setCurrentView('marketplace')}
+            >
+              <img src="/assets/agent8004-logo.svg" alt="agent8004" className="mr-3 h-10" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Agent Marketplace</h1>
-                <p className="text-xs text-gray-600">ERC-8004 on Sui Blockchain</p>
+                <p className="text-xs text-gray-600">8004 on Sui Blockchain</p>
               </div>
             </div>
             <ConnectButton />
@@ -136,51 +156,51 @@ export default function Home() {
 
       {/* Navigation */}
       {account && (
-        <nav className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className="border-b border-gray-200 bg-white">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex space-x-1 overflow-x-auto py-2">
               <button
                 onClick={() => setCurrentView('marketplace')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center ${
+                className={`flex items-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   currentView === 'marketplace'
                     ? 'bg-primary text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <FontAwesomeIcon icon={faStore} className="w-4 h-4 mr-2" />
+                <FontAwesomeIcon icon={faStore} className="mr-2 h-4 w-4" />
                 Marketplace
               </button>
               <button
                 onClick={() => setCurrentView('register')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center ${
+                className={`flex items-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   currentView === 'register'
                     ? 'bg-primary text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <FontAwesomeIcon icon={faPlus} className="w-4 h-4 mr-2" />
+                <FontAwesomeIcon icon={faPlus} className="mr-2 h-4 w-4" />
                 Register Agent
               </button>
               <button
                 onClick={() => setCurrentView('myAgents')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center ${
+                className={`flex items-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   currentView === 'myAgents'
                     ? 'bg-primary text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <FontAwesomeIcon icon={faUser} className="w-4 h-4 mr-2" />
+                <FontAwesomeIcon icon={faUser} className="mr-2 h-4 w-4" />
                 My Agents
               </button>
               <button
                 onClick={() => setCurrentView('validation')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center ${
+                className={`flex items-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   currentView === 'validation'
                     ? 'bg-primary text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <FontAwesomeIcon icon={faShieldAlt} className="w-4 h-4 mr-2" />
+                <FontAwesomeIcon icon={faShieldAlt} className="mr-2 h-4 w-4" />
                 Validation
               </button>
             </div>
@@ -189,9 +209,7 @@ export default function Home() {
       )}
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderContent()}
-      </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{renderContent()}</div>
     </main>
   )
 }

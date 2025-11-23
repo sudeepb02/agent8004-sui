@@ -258,15 +258,10 @@ export default function RegisterAgent() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg bg-blue-600 p-8 text-white">
-        <div className="mb-4 flex items-center">
-          <div className="mr-4 rounded-lg bg-blue-700 p-3">
-            <FontAwesomeIcon icon={faRocket} className="h-8 w-8" />
-          </div>
-          <div>
-            <h2 className="mb-1 text-3xl font-bold">Register New Agent</h2>
-            <p className="text-blue-100">Create a unique agent identity on the Sui blockchain</p>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">Register New Agent</h2>
+          <p className="text-gray-600">Create a unique agent identity on the Sui blockchain</p>
         </div>
       </div>
 
@@ -482,7 +477,7 @@ export default function RegisterAgent() {
                 <textarea
                   value={metadataJson}
                   readOnly
-                  rows={8}
+                  rows={12}
                   className="w-full rounded border border-blue-300 bg-white px-3 py-2 font-mono text-xs"
                 />
               </div>
@@ -508,7 +503,7 @@ export default function RegisterAgent() {
                 onChange={(e) => setMetadataJson(e.target.value)}
                 placeholder="Enter 8004 compliant JSON metadata or click 'Generate Template'"
                 required
-                rows={18}
+                rows={24}
                 className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
               />
               <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">

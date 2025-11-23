@@ -6,15 +6,11 @@ import { Providers } from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Agent8004: AI Agent Identity Registry',
-  description: 'ERC-8004 Agent Registry on Sui',
+  title: 'agent8004',
+  description: '8004 Agent Registry on Sui',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={inter.className}>

@@ -127,16 +127,18 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
         Back to Agent Details
       </button>
 
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">Give Feedback</h2>
+          <p className="text-gray-600">Submit your feedback for Agent #{agent.agentId}</p>
+        </div>
+      </div>
+
       {/* Two Column Layout */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Feedback Form (2/3 width) */}
         <div className="space-y-6 lg:col-span-2">
           <div className="rounded-xl bg-white p-8 shadow-lg">
-            <div className="mb-6">
-              <h2 className="mb-2 text-2xl font-bold text-gray-900">Give Feedback</h2>
-              <p className="text-gray-600">Submit your feedback for Agent #{agent.agentId}</p>
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Score Slider */}
               <div>

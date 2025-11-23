@@ -402,17 +402,10 @@ export default function SetMetadata() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg bg-green-600 p-8 text-white">
-        <div className="mb-4 flex items-center">
-          <div className="mr-4 rounded-lg bg-green-700 p-3">
-            <FontAwesomeIcon icon={faDatabase} className="h-8 w-8" />
-          </div>
-          <div>
-            <h2 className="mb-1 text-3xl font-bold">Set Agent Metadata</h2>
-            <p className="text-green-100">
-              Update token URI or set custom metadata for your agents
-            </p>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">Set Agent Metadata</h2>
+          <p className="text-gray-600">Update token URI or set custom metadata for your agents</p>
         </div>
       </div>
 

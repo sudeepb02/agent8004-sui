@@ -101,7 +101,7 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
           {filteredAgents.map((agent) => (
             <div
               key={agent.id}
-              className="group transform cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
+              className="group flex h-full transform cursor-pointer flex-col overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
               onClick={() => onSelectAgent(agent)}
             >
               {/* Agent Image */}
@@ -137,7 +137,7 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
               </div>
 
               {/* Agent Info */}
-              <div className="p-5">
+              <div className="flex flex-1 flex-col p-5">
                 {/* Agent Name */}
                 <div className="mb-2">
                   <h3 className="truncate text-xl font-bold text-gray-900 transition-colors group-hover:text-primary">
@@ -189,7 +189,7 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
                 )}
 
                 {/* View Details Button */}
-                <button className="mt-4 w-full transform rounded-lg bg-gradient-to-r from-primary to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-indigo-600 hover:to-primary hover:shadow-lg group-hover:scale-[1.02]">
+                <button className="mt-auto w-full transform rounded-lg bg-gradient-to-r from-primary to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-indigo-600 hover:to-primary hover:shadow-lg group-hover:scale-[1.02]">
                   View Details
                 </button>
               </div>

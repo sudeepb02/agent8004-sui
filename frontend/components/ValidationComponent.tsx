@@ -498,7 +498,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <button
         onClick={onBack}
         className="flex items-center text-gray-600 transition-colors hover:text-gray-900"
@@ -506,6 +506,15 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
         <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-5 w-5" />
         Back
       </button>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">Agent Validation</h2>
+          <p className="text-gray-600">
+            Request and respond to validation requests for agent verification
+          </p>
+        </div>
+      </div>
 
       {/* Two Column Layout */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -546,13 +555,6 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div>
-                      <h2 className="mb-2 text-2xl font-bold text-gray-900">Request Validation</h2>
-                      <p className="text-gray-600">
-                        Request a validator to verify your agent's interactions
-                      </p>
-                    </div>
-
                     <form onSubmit={handleValidationRequest} className="space-y-6">
                       <div>
                         <label
@@ -712,13 +714,6 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                 )
               ) : (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="mb-2 text-2xl font-bold text-gray-900">Respond to Validation</h2>
-                    <p className="text-gray-600">
-                      Review and respond to validation requests for your agents
-                    </p>
-                  </div>
-
                   {agents.length === 0 ? (
                     <div className="py-12 text-center">
                       <p className="mb-4 text-gray-600">You need to register an agent first.</p>
