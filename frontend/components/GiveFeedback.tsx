@@ -2,11 +2,12 @@
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faSpinner, faCheck } from '@fortawesome/free-solid-svg-icons'
-import { useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit'
+import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
 import { useState } from 'react'
 import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
 import type { Agent } from '@/types'
+import { storeMetadataWithFlow } from '@/utils/walrus'
 
 interface GiveFeedbackProps {
   agent: Agent
@@ -16,19 +17,61 @@ interface GiveFeedbackProps {
 
 export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackProps) {
   const [score, setScore] = useState(50)
-  const [fileUri, setFileUri] = useState('')
-  const [fileHash, setFileHash] = useState('')
+  const [feedbackText, setFeedbackText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
   const [result, setResult] = useState<string>('')
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   const suiClient = useSuiClient()
+  const currentAccount = useCurrentAccount()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!feedbackText.trim()) {
+      setResult('Error: Please enter feedback text')
+      return
+    }
+
+    if (!currentAccount) {
+      setResult('Error: Please connect your wallet')
+      return
+    }
+
     setLoading(true)
     setResult('')
 
     try {
+      // Step 1: Store feedback on Walrus
+      setUploadingToWalrus(true)
+      setResult('Uploading feedback to Walrus...')
+      
+      const feedbackData = {
+        agentId: agent.agentId,
+        score: score,
+        feedback: feedbackText,
+        timestamp: new Date().toISOString(),
+        reviewer: currentAccount.address,
+      }
+
+      const { blobId, walrusUri } = await storeMetadataWithFlow(
+        feedbackData as any,
+        currentAccount.address,
+        signAndExecute,
+        suiClient,
+        10 // Store for 10 epochs
+      )
+
+      setUploadingToWalrus(false)
+      setResult('Feedback uploaded to Walrus. Submitting on-chain...')
+
+      // Step 2: Generate hash of the feedback data
+      const feedbackJson = JSON.stringify(feedbackData)
+      const feedbackBytes = new TextEncoder().encode(feedbackJson)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', feedbackBytes)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+
+      // Step 3: Submit feedback transaction
       const tx = new Transaction()
 
       tx.moveCall({
@@ -37,8 +80,8 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
           tx.object(CONTRACT_CONFIG.REPUTATION_REGISTRY_ID),
           tx.pure.u64(agent.agentId),
           tx.pure.u8(score),
-          tx.pure.string(fileUri || ''),
-          tx.pure.vector('u8', Array.from(new TextEncoder().encode(fileHash || ''))),
+          tx.pure.string(walrusUri),
+          tx.pure.vector('u8', hashArray),
         ],
       })
 
@@ -68,6 +111,7 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
       console.error('Error:', error)
       setResult(`Error: ${error.message}`)
       setLoading(false)
+      setUploadingToWalrus(false)
     }
   }
 
@@ -132,50 +176,44 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
 
           {/* File URI */}
           <div>
-            <label htmlFor="fileUri" className="block text-sm font-medium text-gray-700 mb-2">
-              Feedback File URI <span className="text-gray-400">(optional)</span>
+            <label htmlFor="feedbackText" className="block text-sm font-medium text-gray-700 mb-2">
+              Feedback Text <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              id="fileUri"
-              value={fileUri}
-              onChange={(e) => setFileUri(e.target.value)}
-              placeholder="ipfs://QmYourFeedbackFile or https://example.com/feedback.json"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            <textarea
+              id="feedbackText"
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Enter your detailed feedback here... This will be stored on Walrus for permanent verification."
+              rows={6}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-vertical"
             />
             <p className="mt-2 text-sm text-gray-500">
-              Link to detailed feedback document
+              Your feedback will be stored on Walrus and linked on-chain with hash verification
             </p>
           </div>
 
           {/* File Hash */}
-          <div>
-            <label htmlFor="fileHash" className="block text-sm font-medium text-gray-700 mb-2">
-              File Hash <span className="text-gray-400">(optional)</span>
-            </label>
-            <input
-              type="text"
-              id="fileHash"
-              value={fileHash}
-              onChange={(e) => setFileHash(e.target.value)}
-              placeholder="SHA-256 hash of your feedback file"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Hash for verification purposes
-            </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-1 text-sm">How it works:</h4>
+            <ul className="text-xs text-blue-800 space-y-1">
+              <li>1. Your feedback text is stored on Walrus (decentralized storage)</li>
+              <li>2. The Walrus blob ID becomes the feedback URI</li>
+              <li>3. A SHA-256 hash is generated for verification</li>
+              <li>4. The URI and hash are recorded on-chain</li>
+            </ul>
           </div>
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !feedbackText.trim()}
             className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
           >
             {loading ? (
               <>
                 <FontAwesomeIcon icon={faSpinner} className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
-                Submitting...
+                {uploadingToWalrus ? 'Uploading to Walrus...' : 'Submitting...'}
               </>
             ) : (
               <>
@@ -196,9 +234,9 @@ export default function GiveFeedback({ agent, onBack, onSuccess }: GiveFeedbackP
           <h3 className="font-medium text-blue-900 mb-2">Feedback Guidelines</h3>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• Score from 0-100: Be fair and honest in your assessment</li>
-            <li>• Optionally attach evidence via file URI (IPFS recommended)</li>
-            <li>• Include file hash for verification</li>
-            <li>• Feedback is permanently recorded on-chain</li>
+            <li>• Write detailed feedback explaining your rating</li>
+            <li>• Feedback is stored on Walrus (decentralized storage)</li>
+            <li>• Feedback is permanently recorded on-chain with verification</li>
           </ul>
         </div>
       </div>
