@@ -147,6 +147,53 @@ export default function AgentDetails({
     }
   }
 
+  const loadAgentFromBlockchain = async () => {
+    try {
+      const agentObject = await suiClient.getObject({
+        id: currentAgent.id,
+        options: {
+          showContent: true,
+          showType: true,
+        },
+      })
+
+      if (agentObject.data?.content?.dataType === 'moveObject') {
+        const fields = (agentObject.data.content as any).fields
+
+        console.log('Reloaded agent fields:', fields)
+        console.log('Reloaded endpoints:', fields.endpoints)
+
+        // Parse endpoints with improved handling
+        const endpoints: Endpoint[] =
+          fields.endpoints?.map((ep: any) => {
+            const name = ep.fields?.name || ep.name || ''
+            const endpoint = ep.fields?.endpoint || ep.endpoint || ''
+            const version = ep.fields?.version || ep.version || ''
+
+            console.log('Parsed endpoint on reload:', { name, endpoint, version })
+
+            return { name, endpoint, version }
+          }) || []
+
+        console.log('Final reloaded endpoints:', endpoints)
+
+        const updatedAgent: Agent = {
+          ...currentAgent,
+          name: fields.name || currentAgent.name,
+          description: fields.description || currentAgent.description,
+          image: fields.image || currentAgent.image,
+          tokenUri: fields.token_uri || currentAgent.tokenUri,
+          endpoints,
+        }
+
+        setCurrentAgent(updatedAgent)
+        if (onAgentUpdate) onAgentUpdate(updatedAgent)
+      }
+    } catch (error) {
+      console.error('Error reloading agent from blockchain:', error)
+    }
+  }
+
   const loadReputation = async () => {
     setLoading(true)
     try {
@@ -297,18 +344,15 @@ export default function AgentDetails({
         signAndExecute(
           { transaction: tx },
           {
-            onSuccess: () => {
-              const newEndpoint: Endpoint = {
-                name: endpointForm.name,
-                endpoint: endpointForm.endpoint,
-                version: endpointForm.version || '1.0.0',
-              }
-              const updatedAgent = {
-                ...currentAgent,
-                endpoints: [...currentAgent.endpoints, newEndpoint],
-              }
-              setCurrentAgent(updatedAgent)
-              if (onAgentUpdate) onAgentUpdate(updatedAgent)
+            onSuccess: async (result) => {
+              // Wait for transaction to be processed
+              await suiClient.waitForTransaction({
+                digest: result.digest,
+              })
+
+              // Reload agent data from blockchain to get updated endpoints
+              await loadAgentFromBlockchain()
+
               setEndpointForm({ name: '', endpoint: '', version: '' })
               setEditingEndpointIndex(null)
               resolve()
