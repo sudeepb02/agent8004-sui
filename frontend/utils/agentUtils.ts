@@ -3,7 +3,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/sui/bcs'
 import { CONTRACT_CONFIG, STRUCT_TYPES } from '@/config/contracts'
 import type { Agent, Endpoint, Reputation } from '@/types'
-import { readMetadataFromWalrus, extractBlobId } from './walrus'
+import { readMetadataFromWalrus, extractBlobId, getWalrusHttpUrl, isWalrusUri } from './walrus'
 
 /**
  * Parse endpoints from Move contract fields
@@ -45,15 +45,23 @@ export function parseAgentFields(fields: any, owner: string): Omit<Agent, 'metad
  * Load metadata from Walrus if tokenUri is available
  */
 export async function loadAgentMetadata(agent: Agent): Promise<Agent> {
+  // Always convert the agent's image URI from smart contract to HTTP URL if it's a Walrus URI
+  const displayImage = agent.image && isWalrusUri(agent.image) 
+    ? getWalrusHttpUrl(agent.image) 
+    : agent.image
+  
   if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
     try {
       const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
-      return { ...agent, metadata }
+      // Return agent with metadata but keep the image from smart contract
+      return { ...agent, metadata, image: displayImage }
     } catch (error) {
       console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
     }
   }
-  return agent
+  
+  // Return agent with converted image URL
+  return { ...agent, image: displayImage }
 }
 
 /**

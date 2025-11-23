@@ -106,10 +106,10 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
             >
               {/* Agent Image */}
               <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-200">
-                {agent.metadata?.image ? (
+                {agent.image ? (
                   <img
-                    src={agent.metadata.image}
-                    alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                    src={agent.image}
+                    alt={agent.metadata?.name || agent.name || `Agent #${agent.agentId}`}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                     onError={(e) => {
                       // Fallback if image fails to load
@@ -122,7 +122,7 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
                 ) : (
                   <img
                     src="/assets/fallback-agent.svg"
-                    alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                    alt={agent.metadata?.name || agent.name || `Agent #${agent.agentId}`}
                     className="h-full w-full object-contain p-8 transition-transform duration-300 group-hover:scale-110"
                   />
                 )}

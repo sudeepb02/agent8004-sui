@@ -20,6 +20,8 @@ import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, MODULES } from '@/config/contracts'
 import {
   storeMetadataWithFlow,
+  uploadImageToWalrus,
+  uploadImageFromUrlToWalrus,
   type AgentMetadata,
   type Endpoint,
   readMetadataFromWalrus,
@@ -41,6 +43,10 @@ export default function SetMetadata() {
   const [selectedAgent, setSelectedAgent] = useState('')
   const [description, setDescription] = useState('')
   const [image, setImage] = useState('')
+  const [imageUploadMode, setImageUploadMode] = useState<'url' | 'file'>('url')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [tokenUri, setTokenUri] = useState('')
   const [endpointName, setEndpointName] = useState('')
   const [endpointUrl, setEndpointUrl] = useState('')
@@ -78,6 +84,51 @@ export default function SetMetadata() {
       }
     } catch (error) {
       console.error('Error loading agents:', error)
+    }
+  }
+
+  const handleImageUpload = async () => {
+    if (!account?.address) {
+      setResult('Error: No wallet connected')
+      return
+    }
+
+    try {
+      setUploadingImage(true)
+      setResult('Uploading image to Walrus...')
+
+      let walrusImageUri: string
+
+      if (imageUploadMode === 'file' && imageFile) {
+        // Upload file directly
+        const { blobId } = await uploadImageToWalrus(
+          imageFile,
+          account.address,
+          signAndExecute,
+          suiClient
+        )
+        walrusImageUri = `walrus://${blobId}`
+      } else if (imageUploadMode === 'url' && imageUrl) {
+        // Upload from URL
+        const { blobId } = await uploadImageFromUrlToWalrus(
+          imageUrl,
+          account.address,
+          signAndExecute,
+          suiClient
+        )
+        walrusImageUri = `walrus://${blobId}`
+      } else {
+        throw new Error('Please provide an image file or URL')
+      }
+
+      // Update the image field with Walrus URI
+      setImage(walrusImageUri)
+      setResult(`Image uploaded to Walrus successfully! URI: ${walrusImageUri}`)
+      setUploadingImage(false)
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      setResult(`Error uploading image: ${error.message}`)
+      setUploadingImage(false)
     }
   }
 
@@ -458,17 +509,121 @@ export default function SetMetadata() {
             </div>
 
             <div>
-              <label htmlFor="image" className="mb-2 block text-sm font-medium text-gray-700">
-                Image URL
-              </label>
-              <input
-                type="text"
-                id="image"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                placeholder="https://example.com/agent-image.png"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
-              />
+              <label className="mb-2 block text-sm font-medium text-gray-700">Agent Image</label>
+
+              {/* Image Upload Mode Toggle */}
+              <div className="mb-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setImageUploadMode('url')}
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    imageUploadMode === 'url'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  <FontAwesomeIcon icon={faLink} className="mr-2" />
+                  Image URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageUploadMode('file')}
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    imageUploadMode === 'file'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-2" />
+                  Upload File
+                </button>
+              </div>
+
+              {/* Image URL Input */}
+              {imageUploadMode === 'url' && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/agent-avatar.png"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleImageUpload}
+                    disabled={!imageUrl || uploadingImage || !account}
+                    className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {uploadingImage ? (
+                      <>
+                        <FontAwesomeIcon icon={faSpinner} className="mr-2 animate-spin" />
+                        Uploading to Walrus...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-2" />
+                        Upload from URL to Walrus
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* File Upload Input */}
+              {imageUploadMode === 'file' && (
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setImageFile(file)
+                      }
+                    }}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-primary"
+                  />
+                  {imageFile && (
+                    <p className="text-sm text-gray-600">
+                      Selected: {imageFile.name} ({(imageFile.size / 1024).toFixed(2)} KB)
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleImageUpload}
+                    disabled={!imageFile || uploadingImage || !account}
+                    className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {uploadingImage ? (
+                      <>
+                        <FontAwesomeIcon icon={faSpinner} className="mr-2 animate-spin" />
+                        Uploading to Walrus...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faCloudUploadAlt} className="mr-2" />
+                        Upload File to Walrus
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Current Image Display */}
+              {image && (
+                <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3">
+                  <p className="text-sm font-medium text-green-900">
+                    <FontAwesomeIcon icon={faCheckCircle} className="mr-2" />
+                    Current Image URI:
+                  </p>
+                  <p className="mt-1 break-all font-mono text-xs text-green-700">{image}</p>
+                </div>
+              )}
+
+              <p className="mt-2 text-sm text-gray-500">
+                Upload an image file or provide a URL. The image will be stored on Walrus.
+              </p>
             </div>
 
             <button
