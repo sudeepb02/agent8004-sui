@@ -1,11 +1,12 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faRotate, faSearch, faFaceFrown, faIdCard, faUser } from '@fortawesome/free-solid-svg-icons'
+import { faRotate, faSearch, faFaceFrown, faIdCard, faUser, faImage } from '@fortawesome/free-solid-svg-icons'
 import { useSuiClient } from '@mysten/dapp-kit'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, STRUCT_TYPES } from '@/config/contracts'
 import type { Agent } from '@/types'
+import { readMetadataFromWalrus, extractBlobId } from '@/utils/walrus'
 
 interface AgentMarketplaceProps {
   onSelectAgent: (agent: Agent) => void
@@ -33,22 +34,43 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
       })
 
       const agentIds = new Set<string>()
+      const agentDataMap = new Map<string, any>()
       
       for (const event of data) {
         const parsedJson = event.parsedJson as any
         if (parsedJson?.agent_id) {
           agentIds.add(parsedJson.agent_id)
+          agentDataMap.set(parsedJson.agent_id, {
+            objectId: parsedJson.agent_object_id,
+            owner: parsedJson.owner,
+          })
         }
       }
 
-      // For now, we'll fetch agents from events
-      // In production, you'd want to query objects directly
-      const agentList: Agent[] = Array.from(agentIds).map((id, index) => ({
-        id: `agent_${id}`,
-        agentId: id,
-        tokenUri: '',
-        owner: '',
-      }))
+      // For now, we'll fetch agents from events and try to load metadata
+      const agentList: Agent[] = await Promise.all(
+        Array.from(agentIds).map(async (id) => {
+          const agentData = agentDataMap.get(id)
+          const agent: Agent = {
+            id: agentData?.objectId || `agent_${id}`,
+            agentId: id,
+            tokenUri: '',
+            owner: agentData?.owner || '',
+          }
+
+          // Try to fetch metadata from Walrus if tokenUri exists
+          try {
+            if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
+              const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
+              agent.metadata = metadata
+            }
+          } catch (error) {
+            console.log(`Could not load metadata for agent ${id}:`, error)
+          }
+
+          return agent
+        })
+      )
 
       setAgents(agentList)
     } catch (error) {
@@ -61,7 +83,9 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
   const filteredAgents = agents.filter(
     (agent) =>
       agent.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.owner.toLowerCase().includes(searchTerm.toLowerCase())
+      agent.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.metadata?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.metadata?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (loading) {
@@ -113,42 +137,99 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredAgents.map((agent) => (
             <div
               key={agent.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer group"
+              className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer group transform hover:-translate-y-1"
               onClick={() => onSelectAgent(agent)}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="bg-blue-600 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  {agent.agentId.slice(0, 2)}
-                </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-primary transition-colors">
-                Agent #{agent.agentId}
-              </h3>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center text-gray-600">
-                  <FontAwesomeIcon icon={faIdCard} className="w-4 h-4 mr-2" />
-                  ID: {agent.id.slice(0, 10)}...
-                </div>
-                {agent.owner && (
-                  <div className="flex items-center text-gray-600">
-                    <FontAwesomeIcon icon={faUser} className="w-4 h-4 mr-2" />
-                    Owner: {agent.owner.slice(0, 8)}...
+              {/* Agent Image */}
+              <div className="relative aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 overflow-hidden">
+                {agent.metadata?.image ? (
+                  <img
+                    src={agent.metadata.image}
+                    alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      // Fallback if image fails to load
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-24 h-24 mx-auto rounded-full flex items-center justify-center text-white font-bold text-4xl shadow-lg mb-3">
+                        {agent.agentId.slice(0, 2)}
+                      </div>
+                      <FontAwesomeIcon icon={faImage} className="text-gray-400 text-3xl" />
+                    </div>
                   </div>
                 )}
+                
+                {/* Active Badge */}
+                <div className="absolute top-3 right-3">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-500 text-white shadow-lg backdrop-blur-sm">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse"></span>
+                    Active
+                  </span>
+                </div>
               </div>
 
-              <button className="mt-4 w-full bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
-                View Details
-              </button>
+              {/* Agent Info */}
+              <div className="p-5">
+                {/* Agent Name and ID */}
+                <div className="mb-3">
+                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors mb-1 truncate">
+                    {agent.metadata?.name || `Agent #${agent.agentId}`}
+                  </h3>
+                  <p className="text-sm text-gray-500 font-mono flex items-center gap-1">
+                    <FontAwesomeIcon icon={faIdCard} className="w-3 h-3" />
+                    ID: {agent.agentId}
+                  </p>
+                </div>
+
+                {/* Description */}
+                {agent.metadata?.description && (
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[2.5rem]">
+                    {agent.metadata.description}
+                  </p>
+                )}
+
+                {/* Endpoints Count */}
+                {agent.metadata?.endpoints && agent.metadata.endpoints.length > 0 && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md text-xs font-medium text-blue-700">
+                      <span className="font-semibold">{agent.metadata.endpoints.length}</span>
+                      <span>endpoint{agent.metadata.endpoints.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {agent.metadata.supportedTrust && agent.metadata.supportedTrust.length > 0 && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded-md text-xs font-medium text-purple-700">
+                        <span className="font-semibold">{agent.metadata.supportedTrust.length}</span>
+                        <span>trust type{agent.metadata.supportedTrust.length !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Owner */}
+                {agent.owner && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="font-medium">Owner</span>
+                      <span className="font-mono">
+                        {agent.owner.slice(0, 6)}...{agent.owner.slice(-4)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* View Details Button */}
+                <button className="mt-4 w-full bg-gradient-to-r from-primary to-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:from-indigo-600 hover:to-primary transition-all shadow-md hover:shadow-lg transform group-hover:scale-[1.02]">
+                  View Details
+                </button>
+              </div>
             </div>
           ))}
         </div>
