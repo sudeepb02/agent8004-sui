@@ -1,11 +1,13 @@
 'use client'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faSpinner, faUpload, faFileAlt } from '@fortawesome/free-solid-svg-icons'
 import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 import { Transaction } from '@mysten/sui/transactions'
+import { bcs } from '@mysten/sui/bcs'
 import { useState, useEffect } from 'react'
 import { CONTRACT_CONFIG, MODULES, STRUCT_TYPES } from '@/config/contracts'
+import { storeMetadataWithFlow } from '@/utils/walrus'
 import type { Agent } from '@/types'
 
 interface ValidationComponentProps {
@@ -18,8 +20,12 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState('')
   const [validatorAddress, setValidatorAddress] = useState('')
+  const [requestInputType, setRequestInputType] = useState<'text' | 'file'>('text')
+  const [requestText, setRequestText] = useState('')
+  const [requestFile, setRequestFile] = useState<File | null>(null)
   const [requestUri, setRequestUri] = useState('')
   const [requestHash, setRequestHash] = useState('')
+  const [uploadingToWalrus, setUploadingToWalrus] = useState(false)
   const [responseHash, setResponseHash] = useState('')
   const [response, setResponse] = useState(1)
   const [responseUri, setResponseUri] = useState('')
@@ -32,6 +38,8 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
   useEffect(() => {
     if (account) {
       loadAgents()
+      // Autofill validator address with connected wallet address
+      setValidatorAddress(account.address)
     }
   }, [account])
 
@@ -78,16 +86,82 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
 
   const handleValidationRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedAgent) return
+    if (!selectedAgent || !account) return
 
     setLoading(true)
     setResult('')
 
     try {
-      const tx = new Transaction()
+      let finalRequestUri = requestUri
+      let finalRequestHash = requestHash
 
-      const requestUriBytes = new Uint8Array(new TextEncoder().encode(requestUri))
-      const requestHashBytes = new Uint8Array(new TextEncoder().encode(requestHash))
+      // If using text or file input, upload to Walrus and generate hash
+      if (requestInputType === 'text' && requestText.trim()) {
+        setUploadingToWalrus(true)
+        setResult('Uploading request data to Walrus...')
+
+        const requestData = {
+          type: 'validation-request',
+          agentId: agents.find((a) => a.id === selectedAgent)?.agentId,
+          content: requestText,
+          timestamp: new Date().toISOString(),
+          requester: account.address,
+        }
+
+        const { blobId, walrusUri } = await storeMetadataWithFlow(
+          requestData as any,
+          account.address,
+          signAndExecute,
+          suiClient,
+          10
+        )
+
+        finalRequestUri = walrusUri
+
+        // Generate hash from request data
+        const dataBytes = new TextEncoder().encode(JSON.stringify(requestData))
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBytes)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        finalRequestHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+        setUploadingToWalrus(false)
+        setResult('Request data uploaded. Submitting on-chain...')
+      } else if (requestInputType === 'file' && requestFile) {
+        setUploadingToWalrus(true)
+        setResult('Uploading file to Walrus...')
+
+        const fileContent = await requestFile.text()
+        const requestData = {
+          type: 'validation-request',
+          agentId: agents.find((a) => a.id === selectedAgent)?.agentId,
+          fileName: requestFile.name,
+          fileType: requestFile.type,
+          content: fileContent,
+          timestamp: new Date().toISOString(),
+          requester: account.address,
+        }
+
+        const { blobId, walrusUri } = await storeMetadataWithFlow(
+          requestData as any,
+          account.address,
+          signAndExecute,
+          suiClient,
+          10
+        )
+
+        finalRequestUri = walrusUri
+
+        // Generate hash from file content
+        const dataBytes = new TextEncoder().encode(JSON.stringify(requestData))
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBytes)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        finalRequestHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+        setUploadingToWalrus(false)
+        setResult('File uploaded. Submitting on-chain...')
+      }
+
+      const tx = new Transaction()
 
       tx.moveCall({
         target: `${MODULES.VALIDATION_REGISTRY}::validation_request`,
@@ -95,8 +169,8 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
           tx.object(CONTRACT_CONFIG.VALIDATION_REGISTRY_ID),
           tx.object(selectedAgent),
           tx.pure.address(validatorAddress),
-          tx.pure(requestUriBytes),
-          tx.pure(requestHashBytes),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(finalRequestUri))),
+          tx.pure(bcs.vector(bcs.u8()).serialize(new TextEncoder().encode(finalRequestHash))),
         ],
       })
 
@@ -110,7 +184,8 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
               digest: result.digest,
             })
             setResult(`Success! Validation request sent. Transaction: ${result.digest}`)
-            setValidatorAddress('')
+            setRequestText('')
+            setRequestFile(null)
             setRequestUri('')
             setRequestHash('')
             setLoading(false)
@@ -126,6 +201,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
       console.error('Error:', error)
       setResult(`Error: ${error.message}`)
       setLoading(false)
+      setUploadingToWalrus(false)
     }
   }
 
@@ -278,47 +354,108 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                           className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
                           required
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Auto-filled with your connected wallet address
+                        </p>
                       </div>
 
+                      {/* Request Input Type Toggle */}
                       <div>
-                        <label
-                          htmlFor="requestUri"
-                          className="mb-2 block text-sm font-medium text-gray-700"
-                        >
-                          Request URI
+                        <label className="mb-3 block text-sm font-medium text-gray-700">
+                          Request Data Input Method
                         </label>
-                        <input
-                          type="text"
-                          id="requestUri"
-                          value={requestUri}
-                          onChange={(e) => setRequestUri(e.target.value)}
-                          placeholder="ipfs://QmYourRequestData"
-                          className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
-                          required
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <button
+                            type="button"
+                            onClick={() => setRequestInputType('text')}
+                            className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-all ${
+                              requestInputType === 'text'
+                                ? 'border-primary bg-blue-50 font-semibold text-primary'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <FontAwesomeIcon icon={faFileAlt} className="h-4 w-4" />
+                            Text Input
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRequestInputType('file')}
+                            className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-all ${
+                              requestInputType === 'file'
+                                ? 'border-primary bg-blue-50 font-semibold text-primary'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <FontAwesomeIcon icon={faUpload} className="h-4 w-4" />
+                            File Upload
+                          </button>
+                        </div>
                       </div>
 
-                      <div>
-                        <label
-                          htmlFor="requestHash"
-                          className="mb-2 block text-sm font-medium text-gray-700"
-                        >
-                          Request Hash
-                        </label>
-                        <input
-                          type="text"
-                          id="requestHash"
-                          value={requestHash}
-                          onChange={(e) => setRequestHash(e.target.value)}
-                          placeholder="Hash of the validation request"
-                          className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-primary"
-                          required
-                        />
-                      </div>
+                      {/* Text Input */}
+                      {requestInputType === 'text' && (
+                        <div>
+                          <label
+                            htmlFor="requestText"
+                            className="mb-2 block text-sm font-medium text-gray-700"
+                          >
+                            Request Data <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            id="requestText"
+                            value={requestText}
+                            onChange={(e) => setRequestText(e.target.value)}
+                            placeholder="Enter validation request details... This will be uploaded to Walrus and the hash will be automatically generated."
+                            rows={6}
+                            required
+                            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-primary"
+                          />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Data will be stored on Walrus and hash will be auto-generated
+                          </p>
+                        </div>
+                      )}
+
+                      {/* File Upload */}
+                      {requestInputType === 'file' && (
+                        <div>
+                          <label
+                            htmlFor="requestFile"
+                            className="mb-2 block text-sm font-medium text-gray-700"
+                          >
+                            Upload Request File <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="file"
+                              id="requestFile"
+                              onChange={(e) => setRequestFile(e.target.files?.[0] || null)}
+                              className="hidden"
+                              required
+                            />
+                            <label
+                              htmlFor="requestFile"
+                              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 transition-colors hover:border-primary hover:bg-blue-50"
+                            >
+                              <FontAwesomeIcon icon={faUpload} className="h-6 w-6 text-gray-400" />
+                              <span className="text-sm text-gray-600">
+                                {requestFile ? requestFile.name : 'Click to upload file'}
+                              </span>
+                            </label>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            File will be uploaded to Walrus and hash will be auto-generated
+                          </p>
+                        </div>
+                      )}
 
                       <button
                         type="submit"
-                        disabled={loading}
+                        disabled={
+                          loading ||
+                          (requestInputType === 'text' && !requestText.trim()) ||
+                          (requestInputType === 'file' && !requestFile)
+                        }
                         className="flex w-full items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {loading ? (
@@ -327,7 +464,7 @@ export default function ValidationComponent({ onBack }: ValidationComponentProps
                               icon={faSpinner}
                               className="mr-2 h-5 w-5 animate-spin"
                             />
-                            Sending...
+                            {uploadingToWalrus ? 'Uploading to Walrus...' : 'Sending...'}
                           </>
                         ) : (
                           'Send Validation Request'
