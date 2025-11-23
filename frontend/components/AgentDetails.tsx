@@ -467,7 +467,7 @@ export default function AgentDetails({
 
             {/* Technical Information */}
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-gray-900">Technical Information</h3>
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Agent Info</h3>
               <div className="space-y-2 text-xs">
                 <div>
                   <label className="font-medium text-gray-500">Object ID</label>
@@ -531,7 +531,7 @@ export default function AgentDetails({
                 {currentAgent.tokenUri && (
                   <div>
                     <div className="flex items-center justify-between">
-                      <label className="font-medium text-gray-500">Token URI</label>
+                      <label className="font-medium text-gray-500">Agent URI</label>
                       {isOwner && editingField !== 'tokenUri' && (
                         <button
                           onClick={() => handleStartEdit('tokenUri', currentAgent.tokenUri)}
@@ -581,12 +581,6 @@ export default function AgentDetails({
                         {currentAgent.tokenUri}
                       </a>
                     )}
-                  </div>
-                )}
-                {currentAgent.metadata?.type && (
-                  <div>
-                    <label className="font-medium text-gray-500">Type</label>
-                    <p className="break-all text-gray-900">{currentAgent.metadata.type}</p>
                   </div>
                 )}
               </div>
@@ -711,36 +705,6 @@ export default function AgentDetails({
                       >
                         {trust}
                       </span>
-                    ))}
-                  </div>
-                  <div className="mt-4 border-b border-gray-200"></div>
-                </div>
-              )}
-
-            {/* Registrations */}
-            {currentAgent.metadata?.registrations &&
-              currentAgent.metadata.registrations.length > 0 && (
-                <div>
-                  <h3 className="mb-2 flex items-center text-sm font-semibold text-gray-900">
-                    <FontAwesomeIcon icon={faCode} className="mr-2 h-4 w-4 text-green-600" />
-                    Registrations
-                  </h3>
-                  <div className="space-y-2">
-                    {currentAgent.metadata.registrations.map((reg, idx) => (
-                      <div key={idx} className="rounded border border-green-100 bg-green-50 p-2">
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <div>
-                            <span className="font-medium text-gray-500">Agent ID:</span>
-                            <span className="ml-1 font-mono text-gray-900">{reg.agentId}</span>
-                          </div>
-                        </div>
-                        <div className="mt-1">
-                          <span className="text-xs text-gray-500">Registry:</span>
-                          <p className="break-all font-mono text-xs text-gray-900">
-                            {reg.agentRegistry}
-                          </p>
-                        </div>
-                      </div>
                     ))}
                   </div>
                   <div className="mt-4 border-b border-gray-200"></div>
