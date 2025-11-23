@@ -104,16 +104,20 @@ export default function AgentDetails({ agent, onBack, onGiveFeedback, onRequestV
                   alt={agent.metadata?.name || `Agent #${agent.agentId}`}
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    // Fallback if image fails to load
                     const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
+                    target.src = '/assets/fallback-agent.svg'
+                    target.className = 'w-full h-full object-contain p-16'
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
               </>
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <FontAwesomeIcon icon={faImage} className="text-white/30 text-8xl" />
-              </div>
+              <img
+                src="/assets/fallback-agent.svg"
+                alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                className="w-full h-full object-contain p-16"
+              />
             )}
             
             {/* Agent Avatar Overlay */}

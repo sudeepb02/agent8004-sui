@@ -154,18 +154,16 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
                     onError={(e) => {
                       // Fallback if image fails to load
                       const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
+                      target.src = '/assets/fallback-agent.svg'
+                      target.className = 'w-full h-full object-contain p-8 group-hover:scale-110 transition-transform duration-300'
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-24 h-24 mx-auto rounded-full flex items-center justify-center text-white font-bold text-4xl shadow-lg mb-3">
-                        {agent.agentId.slice(0, 2)}
-                      </div>
-                      <FontAwesomeIcon icon={faImage} className="text-gray-400 text-3xl" />
-                    </div>
-                  </div>
+                  <img
+                    src="/assets/fallback-agent.svg"
+                    alt={agent.metadata?.name || `Agent #${agent.agentId}`}
+                    className="w-full h-full object-contain p-8 group-hover:scale-110 transition-transform duration-300"
+                  />
                 )}
                 
                 {/* Active Badge */}
