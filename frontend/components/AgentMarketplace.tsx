@@ -25,73 +25,82 @@ export default function AgentMarketplace({ onSelectAgent }: AgentMarketplaceProp
   const loadAllAgents = async () => {
     setLoading(true)
     try {
-      // Query all Agent objects from the identity registry
-      const { data } = await suiClient.queryEvents({
+      // Query all Agent objects by type instead of relying on events
+      // This gets all Agent objects in the system
+      const response = await suiClient.queryEvents({
         query: {
           MoveEventType: `${CONTRACT_CONFIG.PACKAGE_ID}::identity_registry::AgentRegistered`,
         },
         limit: 50,
       })
 
-      const agentObjectIds = new Set<string>()
-      const ownerMap = new Map<string, string>()
+      // Get unique agent IDs and owners from events
+      const agentData = new Map<string, string>() // agent_id -> owner
       
-      for (const event of data) {
+      for (const event of response.data) {
         const parsedJson = event.parsedJson as any
-        if (parsedJson?.agent_object_id) {
-          agentObjectIds.add(parsedJson.agent_object_id)
-          ownerMap.set(parsedJson.agent_object_id, parsedJson.owner)
+        if (parsedJson?.agent_id) {
+          agentData.set(String(parsedJson.agent_id), parsedJson.owner)
         }
       }
 
-      // Fetch full agent objects from the blockchain
+      // Now query for all Agent objects of the correct type
+      // We'll use getDynamicFields on the registry to get agent object IDs
       const agentResults = await Promise.all(
-        Array.from(agentObjectIds).map(async (objectId): Promise<Agent | null> => {
+        Array.from(agentData.keys()).map(async (agentId): Promise<Agent | null> => {
           try {
-            const agentObject = await suiClient.getObject({
-              id: objectId,
+            // Query for objects with this agent_id
+            const objects = await suiClient.getOwnedObjects({
+              owner: agentData.get(agentId)!,
+              filter: {
+                StructType: STRUCT_TYPES.AGENT,
+              },
               options: {
                 showContent: true,
                 showType: true,
               },
             })
 
-            if (agentObject.data?.content?.dataType === 'moveObject') {
-              const fields = (agentObject.data.content as any).fields
-              
-              // Parse endpoints from the Move contract
-              const endpoints: Endpoint[] = fields.endpoints?.map((ep: any) => ({
-                name: ep.name || '',
-                endpoint: ep.endpoint || '',
-                version: ep.version || '',
-              })) || []
+            // Find the agent with matching agent_id
+            for (const obj of objects.data) {
+              if (obj.data?.content?.dataType === 'moveObject') {
+                const fields = (obj.data.content as any).fields
+                
+                if (String(fields.agent_id) === agentId) {
+                  // Parse endpoints from the Move contract
+                  const endpoints: Endpoint[] = fields.endpoints?.map((ep: any) => ({
+                    name: ep.name || '',
+                    endpoint: ep.endpoint || '',
+                    version: ep.version || '',
+                  })) || []
 
-              const agent: Agent = {
-                id: objectId,
-                agentId: fields.agent_id,
-                name: fields.name || '',
-                description: fields.description || '',
-                image: fields.image || '',
-                tokenUri: fields.token_uri || '',
-                endpoints,
-                owner: ownerMap.get(objectId) || '',
-              }
+                  const agent: Agent = {
+                    id: obj.data.objectId,
+                    agentId: fields.agent_id,
+                    name: fields.name || '',
+                    description: fields.description || '',
+                    image: fields.image || '',
+                    tokenUri: fields.token_uri || '',
+                    endpoints,
+                    owner: agentData.get(agentId) || '',
+                  }
 
-              // Try to fetch additional metadata from Walrus if tokenUri exists
-              // This will contain registrations, supportedTrust, and other extended fields
-              if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
-                try {
-                  const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
-                  agent.metadata = metadata
-                } catch (error) {
-                  console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
+                  // Try to fetch additional metadata from Walrus if tokenUri exists
+                  if (agent.tokenUri && agent.tokenUri.startsWith('walrus://')) {
+                    try {
+                      const metadata = await readMetadataFromWalrus(extractBlobId(agent.tokenUri))
+                      agent.metadata = metadata
+                    } catch (error) {
+                      console.log(`Could not load metadata for agent ${agent.agentId}:`, error)
+                    }
+                  }
+
+                  return agent
                 }
               }
-
-              return agent
             }
           } catch (error) {
-            console.error(`Error fetching agent ${objectId}:`, error)
+            console.error(`Error fetching agent ${agentId}:`, error)
           }
           return null
         })
