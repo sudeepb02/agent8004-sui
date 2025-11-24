@@ -1,0 +1,267 @@
+[
+    {
+        "type": "sui-agent",
+        "name": "DataSage AI",
+        "description": "DataSage AI is an advanced data analysis and insights agent specializing in financial forecasting, market analysis, and predictive modeling. Powered by state-of-the-art machine learning algorithms and real-time data processing, it analyzes vast amounts of financial data to identify patterns, trends, and anomalies. The agent provides actionable intelligence for trading strategies, portfolio optimization, and risk assessment. It features automated report generation, custom alert systems, and seamless integration with major financial data providers. Ideal for hedge funds, trading firms, and individual investors seeking data-driven decision-making capabilities.",
+        "image": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=400&fit=crop",
+        "endpoints": [
+            {
+                "name": "A2A",
+                "endpoint": "https://datasage.ai/.well-known/agent-card.json",
+                "version": "0.3.0"
+            },
+            {
+                "name": "MCP",
+                "endpoint": "https://mcp.datasage.ai/",
+                "capabilities": {
+                    "analysis": [
+                        "financial",
+                        "statistical",
+                        "predictive"
+                    ],
+                    "dataFormats": [
+                        "csv",
+                        "json",
+                        "parquet"
+                    ]
+                },
+                "version": "2025-06-18"
+            },
+            {
+                "name": "agentWallet",
+                "endpoint": "eip155:1:0x1234567890123456789012345678901234567890"
+            }
+        ],
+        "registrations": [
+            {
+                "agentId": 1,
+                "agentRegistry": "sui:mainnet:agent8004"
+            }
+        ],
+        "supportedTrust": [
+            "reputation",
+            "crypto-economic",
+            "tee-attestation"
+        ]
+    },
+    {
+        "type": "sui-agent",
+        "name": "CodeMaster Pro",
+        "description": "CodeMaster Pro is an expert coding assistant powered by advanced large language models trained on billions of lines of code. Supporting over 50 programming languages including JavaScript, Python, Rust, Solidity, Move, and more, it provides comprehensive development assistance. The agent excels at code review with detailed feedback on best practices, security vulnerabilities, and performance optimizations. It offers intelligent refactoring suggestions, automated debugging with root cause analysis, and generates comprehensive documentation from codebases. Features include unit test generation, code completion, architecture recommendations, and integration with popular IDEs. Perfect for development teams seeking to improve code quality and solo developers looking to accelerate their workflow.",
+        "image": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=400&fit=crop",
+        "endpoints": [
+            {
+                "name": "A2A",
+                "endpoint": "https://codemaster.dev/.well-known/agent-card.json",
+                "version": "0.3.0"
+            },
+            {
+                "name": "MCP",
+                "endpoint": "https://mcp.codemaster.dev/",
+                "capabilities": {
+                    "languages": [
+                        "javascript",
+                        "python",
+                        "rust",
+                        "solidity",
+                        "move"
+                    ],
+                    "features": [
+                        "code-review",
+                        "refactoring",
+                        "testing",
+                        "documentation"
+                    ]
+                },
+                "version": "2025-06-18"
+            },
+            {
+                "name": "OASF",
+                "endpoint": "ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
+                "version": "0.7"
+            },
+            {
+                "name": "agentWallet",
+                "endpoint": "eip155:1:0x2345678901234567890123456789012345678901"
+            }
+        ],
+        "registrations": [
+            {
+                "agentId": 2,
+                "agentRegistry": "sui:mainnet:agent8004"
+            }
+        ],
+        "supportedTrust": [
+            "reputation",
+            "tee-attestation"
+        ]
+    },
+    {
+        "type": "sui-agent",
+        "name": "SocialSphere Analytics",
+        "description": "SocialSphere Analytics is a comprehensive social media monitoring and sentiment analysis agent designed for modern digital marketing. It continuously tracks brand mentions, competitor activity, and trending topics across Twitter, Reddit, Discord, Telegram, and other major platforms. Using advanced natural language processing and sentiment analysis, it categorizes conversations as positive, negative, or neutral with high accuracy. The agent provides real-time alerts for viral content, identifies key influencers and brand advocates, measures engagement metrics including reach and impression velocity, and generates detailed reports with actionable insights. Features include custom dashboards, automated response suggestions, crisis detection, and ROI tracking for social campaigns. Ideal for marketing teams, community managers, and brands looking to maintain a strong social media presence.",
+        "image": "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=400&fit=crop",
+        "endpoints": [
+            {
+                "name": "A2A",
+                "endpoint": "https://socialsphere.io/.well-known/agent-card.json",
+                "version": "0.3.0"
+            },
+            {
+                "name": "MCP",
+                "endpoint": "https://mcp.socialsphere.io/",
+                "capabilities": {
+                    "platforms": [
+                        "twitter",
+                        "reddit",
+                        "discord",
+                        "telegram"
+                    ],
+                    "analysis": [
+                        "sentiment",
+                        "trending",
+                        "engagement",
+                        "influencer-tracking"
+                    ]
+                },
+                "version": "2025-06-18"
+            },
+            {
+                "name": "DID",
+                "endpoint": "did:web:socialsphere.io",
+                "version": "v1"
+            },
+            {
+                "name": "agentWallet",
+                "endpoint": "eip155:1:0x3456789012345678901234567890123456789012"
+            }
+        ],
+        "registrations": [
+            {
+                "agentId": 3,
+                "agentRegistry": "sui:mainnet:agent8004"
+            }
+        ],
+        "supportedTrust": [
+            "reputation",
+            "crypto-economic"
+        ]
+    },
+    {
+        "type": "sui-agent",
+        "name": "SmartContract Auditor",
+        "description": "SmartContract Auditor is an automated security auditing agent specialized in blockchain smart contract analysis across EVM, Solana, and Sui chains. It performs comprehensive static analysis, symbolic execution, and formal verification to detect vulnerabilities in Move, Solidity, and Rust smart contract code. The agent identifies common security issues including reentrancy attacks, integer overflow/underflow, access control vulnerabilities, logic errors, and gas optimization opportunities. It generates detailed audit reports with severity classifications, code snippets highlighting issues, and remediation recommendations. Features include continuous monitoring for deployed contracts, compliance checking against industry standards (CertiK, OpenZeppelin), integration with CI/CD pipelines, and comparative analysis against similar audited contracts. The agent maintains a database of known exploit patterns and updates its detection algorithms based on the latest security research. Essential for DeFi projects, NFT platforms, and any blockchain application requiring security assurance.",
+        "image": "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=400&h=400&fit=crop",
+        "endpoints": [
+            {
+                "name": "A2A",
+                "endpoint": "https://scauditor.security/.well-known/agent-card.json",
+                "version": "0.3.0"
+            },
+            {
+                "name": "MCP",
+                "endpoint": "https://mcp.scauditor.security/",
+                "capabilities": {
+                    "chains": [
+                        "ethereum",
+                        "solana",
+                        "sui",
+                        "aptos"
+                    ],
+                    "languages": [
+                        "solidity",
+                        "move",
+                        "rust"
+                    ],
+                    "checks": [
+                        "reentrancy",
+                        "overflow",
+                        "access-control",
+                        "logic-errors"
+                    ]
+                },
+                "version": "2025-06-18"
+            },
+            {
+                "name": "OASF",
+                "endpoint": "ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+                "version": "0.7"
+            },
+            {
+                "name": "agentWallet",
+                "endpoint": "eip155:1:0x4567890123456789012345678901234567890123"
+            }
+        ],
+        "registrations": [
+            {
+                "agentId": 4,
+                "agentRegistry": "sui:mainnet:agent8004"
+            }
+        ],
+        "supportedTrust": [
+            "reputation",
+            "crypto-economic",
+            "tee-attestation"
+        ]
+    },
+    {
+        "type": "sui-agent",
+        "name": "DeFi Navigator",
+        "description": "DeFi Navigator is an intelligent portfolio manager and yield optimizer designed to maximize returns in the decentralized finance ecosystem. The agent continuously scans over 100 DEXs and 200+ DeFi protocols across Ethereum, Polygon, Arbitrum, Optimism, Sui, and other major chains to discover the best yield farming opportunities. It automatically manages liquidity positions, executes optimal swap routes with minimal slippage, and rebalances portfolios based on market conditions and user-defined risk parameters. Features include impermanent loss protection strategies, gas optimization for transaction batching, automated compounding of rewards, and real-time APY tracking. The agent employs sophisticated algorithms for risk assessment, considering factors like smart contract security scores, historical volatility, and liquidity depth. It provides transparent reporting on all transactions, tax document generation, and customizable automation rules. Perfect for both DeFi veterans seeking to optimize their strategies and newcomers looking for guided investment automation.",
+        "image": "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400&h=400&fit=crop",
+        "endpoints": [
+            {
+                "name": "A2A",
+                "endpoint": "https://definav.finance/.well-known/agent-card.json",
+                "version": "0.3.0"
+            },
+            {
+                "name": "MCP",
+                "endpoint": "https://mcp.definav.finance/",
+                "capabilities": {
+                    "chains": [
+                        "ethereum",
+                        "polygon",
+                        "arbitrum",
+                        "optimism",
+                        "sui"
+                    ],
+                    "protocols": [
+                        "uniswap",
+                        "aave",
+                        "compound",
+                        "curve",
+                        "balancer"
+                    ],
+                    "strategies": [
+                        "yield-farming",
+                        "liquidity-provision",
+                        "arbitrage",
+                        "auto-rebalancing"
+                    ]
+                },
+                "version": "2025-06-18"
+            },
+            {
+                "name": "ENS",
+                "endpoint": "definav.eth",
+                "version": "v1"
+            },
+            {
+                "name": "agentWallet",
+                "endpoint": "eip155:1:0x5678901234567890123456789012345678901234"
+            }
+        ],
+        "registrations": [
+            {
+                "agentId": 5,
+                "agentRegistry": "sui:mainnet:agent8004"
+            }
+        ],
+        "supportedTrust": [
+            "reputation",
+            "crypto-economic",
+            "tee-attestation"
+        ]
+    }
+]
